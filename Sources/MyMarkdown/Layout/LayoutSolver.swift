@@ -46,7 +46,7 @@ public final class LayoutSolver {
         }
         
         // 1. Convert AST to styled NSAttributedString based on Theme
-        let styledString = createAttributedString(for: node)
+        let styledString = await createAttributedString(for: node)
         
         // 2. Measure exactly using the background TextKitCalculator
         let size = textCalculator.calculateSize(for: styledString, constrainedToWidth: maxWidth)
@@ -78,7 +78,7 @@ public final class LayoutSolver {
     
     // MARK: - Internal Styling
     
-    private func createAttributedString(for node: MarkdownNode) -> NSAttributedString {
+    private func createAttributedString(for node: MarkdownNode) async -> NSAttributedString {
         let string = NSMutableAttributedString()
         
         switch node {
@@ -88,6 +88,30 @@ public final class LayoutSolver {
             // Just extracting raw text for the prototype solver
             if let textNode = header.children.first as? TextNode {
                 string.append(NSAttributedString(string: textNode.text, attributes: attributes))
+            }
+            
+        case let text as TextNode:
+            let attributes = defaultAttributes(for: theme.paragraph)
+            string.append(NSAttributedString(string: text.text, attributes: attributes))
+            
+        case let math as MathNode:
+            // Suspend the LayoutSolver Task while WebKit evaluates the JavaScript via MathJax
+            if let image = await renderMath(latex: math.equation) {
+                #if canImport(UIKit)
+                let attachment = NSTextAttachment()
+                attachment.image = image
+                
+                // For Inline Math, align with text baseline. For Block, span available width if needed.
+                let offsetY: CGFloat = math.isInline ? -4.0 : 0.0
+                attachment.bounds = CGRect(x: 0, y: offsetY, width: image.size.width, height: image.size.height)
+                
+                let attrString = NSAttributedString(attachment: attachment)
+                string.append(attrString)
+                #endif
+            } else {
+                // Fallback to raw text if WebKit JS execution fails 
+                let attr = defaultAttributes(for: theme.codeBlock)
+                string.append(NSAttributedString(string: math.equation, attributes: attr))
             }
             
         case let paragraph as ParagraphNode:
@@ -127,4 +151,16 @@ public final class LayoutSolver {
             .foregroundColor: theme.textColor.foreground
         ]
     }
+    
+    // MARK: - Async Math Helper
+    private func renderMath(latex: String) async -> NativeImage? {
+        return await withCheckedContinuation { continuation in
+            Task { @MainActor in
+                MathRenderer.shared.render(latex: latex) { image in
+                    continuation.resume(returning: image)
+                }
+            }
+        }
+    }
 }
+
