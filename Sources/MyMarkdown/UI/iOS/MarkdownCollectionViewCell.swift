@@ -25,9 +25,19 @@ public class MarkdownCollectionViewCell: UICollectionViewCell {
     
     /// Mounts the pre-calculated `LayoutResult` onto the main thread.
     public func configure(with layout: LayoutResult) {
-        // Implementation for routing LayoutResult to the correct Subview (MarkdownTextView, ImageView, etc.)
-        // will go here next. For now, we simply apply the exact frame.
-        self.contentView.frame.size = layout.size
+        // Recycle aggressive purge
+        hostedView?.removeFromSuperview()
+        
+        switch layout.node {
+        default:
+            // For now, assume all items are text-based or container nodes holding text
+            let textView = AsyncTextView(frame: CGRect(origin: .zero, size: layout.size))
+            self.contentView.addSubview(textView)
+            self.hostedView = textView
+            
+            // Dispatch the background rendering pass
+            textView.configure(with: layout)
+        }
     }
 }
 #endif
