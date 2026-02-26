@@ -16,8 +16,8 @@
 - [x] Create `MarkupVisitor` class subscribing to `swift-markdown` API
 - [x] Implement `MarkupVisitor` parsing for basic blocks (Headers, Paragraphs)
 - [x] Implement `MarkupVisitor` parsing for complex blocks (Code, Images, Lists)
-- [ ] Implement AST Extensibility mechanism (Middleware Plugin protocol)
-- [ ] Add Unit Tests: CommonMark standard parsing fidelity
+- [x] Implement AST Extensibility mechanism (Middleware Plugin protocol)
+- [/] Add Unit Tests: CommonMark standard parsing fidelity
 - [ ] Add Unit Tests: GitHub Flavored Markdown parsing fidelity
 
 ## Phase 2: Asynchronous Layout Engine
