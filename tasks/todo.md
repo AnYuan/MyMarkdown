@@ -1,34 +1,52 @@
-# Implementation Checklist
+# Implementation Checklist (Atomic Commits)
 
 ## Setup
-- [ ] Initialize Swift Package structure inside `MyMarkdown` workspace
-- [ ] Add `swift-markdown` as a dependency
+- [ ] Initialize standard Swift Package `MyMarkdown` workspace
+- [ ] Add Apple's `swift-markdown` library as a dependency
+- [ ] Setup base XCTest target `MyMarkdownTests`
 
-## Phase 1: Parsing Engine
-- [ ] Define core AST node structure (e.g., `DocumentNode`, `BlockNode`, `InlineNode`)
-- [ ] Implement `swift-markdown` Visitor to map to internal nodes
-- [ ] Setup AST Middleware/Plugin architecture
-- [ ] Add unit tests for AST parser against CommonMark / GFM 
+## Phase 1: Parsing Engine (AST)
+- [ ] Define internal `MarkdownNode` protocol and base element structures
+- [ ] Implement `DocumentNode`, `BlockNode`, and `InlineNode` models
+- [ ] Implement `HeaderNode`, `ParagraphNode`, and `TextNode` models
+- [ ] Implement `CodeBlockNode` and `InlineCodeNode` models
+- [ ] Implement `MathNode` (block `$$` and inline `$`) models
+- [ ] Implement `ImageNode` and `LinkNode` models
+- [ ] Create `MarkupVisitor` class subscribing to `swift-markdown` API
+- [ ] Implement `MarkupVisitor` parsing for basic blocks (Headers, Paragraphs)
+- [ ] Implement `MarkupVisitor` parsing for complex blocks (Code, Images, Lists)
+- [ ] Implement AST Extensibility mechanism (Middleware Plugin protocol)
+- [ ] Add Unit Tests: CommonMark standard parsing fidelity
+- [ ] Add Unit Tests: GitHub Flavored Markdown parsing fidelity
 
-## Phase 2: Layout Engine
-- [ ] Create `LayoutResult` models holding frames and text representations
-- [ ] Implement background thread text sizing using TextKit 2 logic
-- [ ] Establish memory-safe chunking for massive document bounding-box resolution
-- [ ] Add unit tests for Layout calculation and dynamic type scaling
+## Phase 2: Asynchronous Layout Engine
+- [ ] Implement `TypographyToken` and `ColorToken` theme structures
+- [ ] Create `LayoutResult` models containing exact `CGRect` dimensions
+- [ ] Create base `TextKit 2` calculator class running on background queue
+- [ ] Implement background sizing solver for standard text blocks
+- [ ] Implement caching mechanism for Layout models based on width/Device scale
+- [ ] Implement asynchronous yielding logic for giant documents (>10MB)
+- [ ] Add Unit Tests: Verify exact framing dimension logic for varying strings
 
-## Phase 3: Rendering UI
-- [ ] Implement virtualized scrolling container (`UICollectionView` / `NSTableView`)
-- [ ] Create native UI components for different node types (Text, Image, CodeBlock)
-- [ ] Implement async displaying (mount on visible, demount on hidden)
-- [ ] Perform application memory profiling (Target: < 100MB parsing overhead)
+## Phase 3: Virtualized Rendering UI
+- [ ] Implement core virtualized `NSCollectionView` (macOS) layout
+- [ ] Implement core virtualized `UICollectionView` (iOS) layout
+- [ ] Create Native component: `MarkdownTextView`
+- [ ] Create Native component: `MarkdownImageView`
+- [ ] Create Native component: `MarkdownCodeView`
+- [ ] Implement `Texture`-style Display State logic: Mount views only when visible
+- [ ] Implement `Texture`-style Display State logic: Purge views when offscreen
+- [ ] Add Unit Tests: Verify node virtualization limits memory consumption
 
-## Phase 4: Extended Features
-- [ ] Integrate syntax highlighting for code blocks (Splash / Custom)
-- [ ] Add iOS/macOS native "Copy Code" button and language indicator overhead
-- [ ] Integrate LaTeX math equations parser and view
-- [ ] Build unified Typography and Color token system (Day / Night mode)
+## Phase 4: Extended Features (ChatGPT Parity)
+- [ ] Integrate native "Copy Paste" UX for Code Blocks
+- [ ] Integrate lightweight syntax highlighter for Code Blocks
+- [ ] Add UI styling for Markdown Tables and Checkbox Task Lists
+- [ ] Integrate lightweight LaTeX renderer (MathJax/iosMath) for $$ MathNodes
+- [ ] Implement smooth transitioning between Light/Dark mode themes
+- [ ] Add UI Snapshot Tests for Code Block and Math rendering parity
 
-## Phase 5: Delivery
-- [ ] Finalize automated UI snapshot testing
-- [ ] Comprehensive Code review and documentation
-- [ ] Verify scrolling FPS on extreme document sizes
+## Phase 5: Delivery & Polish
+- [ ] Profile and resolve any memory leaks associated with image loading or TextKit caches
+- [ ] Profile and resolve scrolling hitches using Instruments
+- [ ] Final architecture documentation and code hygiene review
