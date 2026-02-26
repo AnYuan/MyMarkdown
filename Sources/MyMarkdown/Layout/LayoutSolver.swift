@@ -46,7 +46,7 @@ public final class LayoutSolver {
         }
         
         // 1. Convert AST to styled NSAttributedString based on Theme
-        let styledString = await createAttributedString(for: node)
+        let styledString = await createAttributedString(for: node, constrainedToWidth: maxWidth)
         
         // 2. Measure exactly using the background TextKitCalculator
         let size = textCalculator.calculateSize(for: styledString, constrainedToWidth: maxWidth)
@@ -78,10 +78,40 @@ public final class LayoutSolver {
     
     // MARK: - Internal Styling
     
-    private func createAttributedString(for node: MarkdownNode) async -> NSAttributedString {
+    private func createAttributedString(for node: MarkdownNode, constrainedToWidth maxWidth: CGFloat) async -> NSAttributedString {
         let string = NSMutableAttributedString()
         
         switch node {
+        case let table as TableNode:
+            let colCount = max(1, table.columnAlignments.count)
+            let colWidth = maxWidth / CGFloat(colCount)
+            
+            let paragraphStyle = NSMutableParagraphStyle()
+            var tabs: [NSTextTab] = []
+            for i in 1...colCount {
+                let alignment: NSTextAlignment
+                let align = i <= table.columnAlignments.count ? table.columnAlignments[i-1] : nil
+                switch align {
+                case .right: alignment = .right
+                case .center: alignment = .center
+                default: alignment = .left
+                }
+                let tab = NSTextTab(textAlignment: alignment, location: colWidth * CGFloat(i), options: [:])
+                tabs.append(tab)
+            }
+            paragraphStyle.tabStops = tabs
+            paragraphStyle.defaultTabInterval = colWidth
+            
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: theme.paragraph.font,
+                .paragraphStyle: paragraphStyle,
+                .foregroundColor: theme.textColor.foreground,
+                .backgroundColor: theme.tableColor.background
+            ]
+            
+            let rawText = extractTableText(from: table)
+            string.append(NSAttributedString(string: rawText, attributes: attributes))
+            
         case let header as HeaderNode:
             let token = themeToken(forHeaderLevel: header.level)
             let attributes = defaultAttributes(for: token)
@@ -125,6 +155,34 @@ public final class LayoutSolver {
             let highlighted = highlighter.highlight(code.code, language: code.language)
             string.append(highlighted)
             
+        case let list as ListNode:
+            // Just stack list children with some indentation
+            for child in list.children {
+                let childAttr = await createAttributedString(for: child, constrainedToWidth: maxWidth)
+                if string.length > 0 {
+                    string.append(NSAttributedString(string: "\n"))
+                }
+                string.append(childAttr)
+            }
+            
+        case let listItem as ListItemNode:
+            let attributes = defaultAttributes(for: theme.paragraph)
+            
+            // Add Checkbox or Bullet
+            var preText = "• "
+            switch listItem.checkbox {
+            case .checked: preText = "☑ "
+            case .unchecked: preText = "☐ "
+            case .none: break
+            }
+            
+            string.append(NSAttributedString(string: preText, attributes: attributes))
+            
+            for child in listItem.children {
+                let childAttr = await createAttributedString(for: child, constrainedToWidth: maxWidth)
+                string.append(childAttr)
+            }
+            
         default:
             break
         }
@@ -161,6 +219,30 @@ public final class LayoutSolver {
                 }
             }
         }
+    }
+    
+    // MARK: - Table Helper
+    private func extractTableText(from table: TableNode) -> String {
+        var rows: [String] = []
+        for section in table.children {
+            let sectionChildren = (section as? TableHeadNode)?.children ?? (section as? TableBodyNode)?.children ?? []
+            for row in sectionChildren {
+                let rowChildren = (row as? TableRowNode)?.children ?? []
+                var cells: [String] = []
+                for cell in rowChildren {
+                    var cellText = ""
+                    let cellChildren = (cell as? TableCellNode)?.children ?? []
+                    for cellChild in cellChildren {
+                        if let textNode = cellChild as? TextNode {
+                            cellText += textNode.text
+                        }
+                    }
+                    cells.append(cellText)
+                }
+                rows.append(cells.joined(separator: "\t"))
+            }
+        }
+        return rows.joined(separator: "\n")
     }
 }
 

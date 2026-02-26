@@ -44,7 +44,7 @@
 ## Phase 4: Extended Features (ChatGPT Parity)
 - [x] Integrate native "Copy Paste" UX for Code Blocks
 - [x] Integrate lightweight syntax highlighter for Code Blocks
-- [ ] Add UI styling for Markdown Tables and Checkbox Task Lists
+- [x] Add UI styling for Markdown Tables and Checkbox Task Lists
 - [x] Integrate lightweight LaTeX renderer (MathJax/iosMath) for $$ MathNodes
 - [ ] Implement smooth transitioning between Light/Dark mode themes
 - [ ] Add UI Snapshot Tests for Code Block and Math rendering parity

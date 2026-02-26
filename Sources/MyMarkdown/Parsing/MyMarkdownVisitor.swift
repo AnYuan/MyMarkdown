@@ -74,6 +74,73 @@ public struct MyMarkdownVisitor: MarkupVisitor {
         return [node]
     }
     
+    // MARK: - Lists
+    
+    public mutating func visitOrderedList(_ orderedList: OrderedList) -> [MarkdownNode] {
+        let children = defaultVisit(orderedList)
+        let node = ListNode(range: orderedList.range, isOrdered: true, children: children)
+        return [node]
+    }
+    
+    public mutating func visitUnorderedList(_ unorderedList: UnorderedList) -> [MarkdownNode] {
+        let children = defaultVisit(unorderedList)
+        let node = ListNode(range: unorderedList.range, isOrdered: false, children: children)
+        return [node]
+    }
+    
+    public mutating func visitListItem(_ listItem: ListItem) -> [MarkdownNode] {
+        let children = defaultVisit(listItem)
+        let checkboxState: CheckboxState
+        switch listItem.checkbox {
+        case .checked: checkboxState = .checked
+        case .unchecked: checkboxState = .unchecked
+        case .none: checkboxState = .none
+        }
+        let node = ListItemNode(range: listItem.range, checkbox: checkboxState, children: children)
+        return [node]
+    }
+    
+    // MARK: - Tables (GFM)
+    
+    public mutating func visitTable(_ table: Table) -> [MarkdownNode] {
+        let children = defaultVisit(table)
+        let alignments = table.columnAlignments.map { alignment -> TableAlignment? in
+            switch alignment {
+            case .left: return .left
+            case .right: return .right
+            case .center: return .center
+            case .none: return .none
+            @unknown default: return .none
+            }
+        }
+        let node = TableNode(range: table.range, columnAlignments: alignments, children: children)
+        return [node]
+    }
+    
+    public mutating func visitTableHead(_ tableHead: Table.Head) -> [MarkdownNode] {
+        let children = defaultVisit(tableHead)
+        let node = TableHeadNode(range: tableHead.range, children: children)
+        return [node]
+    }
+    
+    public mutating func visitTableBody(_ tableBody: Table.Body) -> [MarkdownNode] {
+        let children = defaultVisit(tableBody)
+        let node = TableBodyNode(range: tableBody.range, children: children)
+        return [node]
+    }
+    
+    public mutating func visitTableRow(_ tableRow: Table.Row) -> [MarkdownNode] {
+        let children = defaultVisit(tableRow)
+        let node = TableRowNode(range: tableRow.range, children: children)
+        return [node]
+    }
+    
+    public mutating func visitTableCell(_ tableCell: Table.Cell) -> [MarkdownNode] {
+        let children = defaultVisit(tableCell)
+        let node = TableCellNode(range: tableCell.range, children: children)
+        return [node]
+    }
+    
     // MARK: - Math (Extensions)
     
     /// swift-markdown does not support native `Math` elements by default in standard CommonMark.

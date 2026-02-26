@@ -22,6 +22,7 @@ public struct Theme {
     
     public let textColor: ColorToken
     public let codeColor: ColorToken
+    public let tableColor: ColorToken
     
     public init(
         header1: TypographyToken,
@@ -30,7 +31,8 @@ public struct Theme {
         paragraph: TypographyToken,
         codeBlock: TypographyToken,
         textColor: ColorToken,
-        codeColor: ColorToken
+        codeColor: ColorToken,
+        tableColor: ColorToken
     ) {
         self.header1 = header1
         self.header2 = header2
@@ -39,6 +41,7 @@ public struct Theme {
         self.codeBlock = codeBlock
         self.textColor = textColor
         self.codeColor = codeColor
+        self.tableColor = tableColor
     }
     
     /// The default cross-platform theme for MyMarkdown.
@@ -52,9 +55,11 @@ public struct Theme {
 #if canImport(UIKit)
         let textC = ColorToken(foreground: .label)
         let codeC = ColorToken(foreground: .label, background: .secondarySystemBackground)
+        let tableC = ColorToken(foreground: .separator, background: .secondarySystemGroupedBackground)
 #elseif canImport(AppKit)
         let textC = ColorToken(foreground: .labelColor)
         let codeC = ColorToken(foreground: .labelColor, background: .windowBackgroundColor)
+        let tableC = ColorToken(foreground: .gridColor, background: .controlBackgroundColor)
 #endif
         
         return Theme(
@@ -64,7 +69,8 @@ public struct Theme {
             paragraph: p,
             codeBlock: code,
             textColor: textC,
-            codeColor: codeC
+            codeColor: codeC,
+            tableColor: tableC
         )
     }
 }
