@@ -13,9 +13,9 @@
 - [x] Implement `CodeBlockNode` and `InlineCodeNode` models
 - [x] Implement `MathNode` (block `$$` and inline `$`) models
 - [x] Implement `ImageNode` and `LinkNode` models
-- [/] Create `MarkupVisitor` class subscribing to `swift-markdown` API
-- [ ] Implement `MarkupVisitor` parsing for basic blocks (Headers, Paragraphs)
-- [ ] Implement `MarkupVisitor` parsing for complex blocks (Code, Images, Lists)
+- [x] Create `MarkupVisitor` class subscribing to `swift-markdown` API
+- [x] Implement `MarkupVisitor` parsing for basic blocks (Headers, Paragraphs)
+- [/] Implement `MarkupVisitor` parsing for complex blocks (Code, Images, Lists)
 - [ ] Implement AST Extensibility mechanism (Middleware Plugin protocol)
 - [ ] Add Unit Tests: CommonMark standard parsing fidelity
 - [ ] Add Unit Tests: GitHub Flavored Markdown parsing fidelity
