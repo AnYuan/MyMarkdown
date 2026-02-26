@@ -15,6 +15,10 @@ let package = Package(
             name: "MyMarkdown",
             targets: ["MyMarkdown"]
         ),
+        .executable(
+            name: "MyMarkdownDemo",
+            targets: ["MyMarkdownDemo"]
+        )
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-markdown.git", branch: "main"),
@@ -29,6 +33,10 @@ let package = Package(
                 .product(name: "Markdown", package: "swift-markdown"),
                 .product(name: "Splash", package: "Splash")
             ]
+        ),
+        .executableTarget(
+            name: "MyMarkdownDemo",
+            dependencies: ["MyMarkdown"]
         ),
         .testTarget(
             name: "MyMarkdownTests",

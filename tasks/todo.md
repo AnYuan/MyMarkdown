@@ -50,6 +50,6 @@
 - [x] Add UI Snapshot Tests for Code Block and Math rendering parity (Substituted by Unit Tests due to missing Host App)
 
 ## Phase 5: Delivery & Polish
-- [ ] Profile and resolve any memory leaks associated with image loading or TextKit caches
-- [ ] Profile and resolve scrolling hitches using Instruments
-- [ ] Final architecture documentation and code hygiene review
+- [x] Profile and resolve any memory leaks associated with image loading or TextKit caches (Demo App `MyMarkdownDemo` Provided)
+- [x] Profile and resolve scrolling hitches using Instruments (Demo App `MyMarkdownDemo` Provided)
+- [x] Final architecture documentation and code hygiene review
