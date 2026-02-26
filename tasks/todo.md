@@ -21,9 +21,9 @@
 - [x] Add Unit Tests: GitHub Flavored Markdown parsing fidelity
 
 ## Phase 2: Asynchronous Layout Engine
-- [/] Implement `TypographyToken` and `ColorToken` theme structures
-- [ ] Create `LayoutResult` models containing exact `CGRect` dimensions
-- [ ] Create base `TextKit 2` calculator class running on background queue
+- [x] Implement `TypographyToken` and `ColorToken` theme structures
+- [x] Create `LayoutResult` models containing exact `CGRect` dimensions
+- [/] Create base `TextKit 2` calculator class running on background queue
 - [ ] Implement background sizing solver for standard text blocks
 - [ ] Implement caching mechanism for Layout models based on width/Device scale
 - [ ] Implement asynchronous yielding logic for giant documents (>10MB)
