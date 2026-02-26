@@ -35,8 +35,10 @@
 - [ ] Create Native component: `MarkdownTextView`
 - [ ] Create Native component: `MarkdownImageView`
 - [ ] Create Native component: `MarkdownCodeView`
-- [ ] Implement `Texture`-style Display State logic: Mount views only when visible
-- [ ] Implement `Texture`-style Display State logic: Purge views when offscreen
+- [ ] Implement `Texture`-style Display State logic: Asynchronously render text to `CGContext` on background thread
+- [ ] Implement `Texture`-style Display State logic: Asynchronously decode image data to `CGImage` on background thread
+- [ ] Implement `Texture`-style Display State logic: Mount views onto main thread only when visible
+- [ ] Implement `Texture`-style Display State logic: Purge memory-heavy backing stores when offscreen
 - [ ] Add Unit Tests: Verify node virtualization limits memory consumption
 
 ## Phase 4: Extended Features (ChatGPT Parity)

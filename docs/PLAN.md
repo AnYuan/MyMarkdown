@@ -19,12 +19,13 @@ This document breaks down the execution strategy to fulfill the requirements def
 4. **Quality Assurance**: Develop unit tests verifying mathematically perfect framing calculations for varying device screen widths and dynamic type sizes.
 
 ## Phase 3: Virtualized Rendering UI
-**Goal**: Only instantiate UI layers when components enter the viewport.
+**Goal**: Only instantiate UI layers when components enter the viewport, and completely eliminate main-thread blocking during rendering.
 1. **iOS**: Implement a high-performance `UICollectionView` handling virtualization.
 2. **macOS**: Implement the `NSTableView`/`NSCollectionView` AppKit equivalents.
 3. Develop individual native View components for each layout node (e.g., `MarkdownTextView`, `MarkdownImageView`, `MarkdownCodeView`).
-4. Implement the asynchronous "Display State" logic (as detailed in `Texture.md`)—mounting views intelligently as the user scrolls, preventing main-thread blocking.
-5. **Quality Assurance**: Perform memory profiling confirming the footprint remains under 100MB even for millions of words.
+4. **Texture Display State**: Specifically mandate that all text rendering (drawing `NSAttributedString` to a `CGContext`) and all `Image/GIF` data decoding must occur strictly on a background queue.
+5. Implement the asynchronous mounting logic—applying the pre-drawn contexts to views dynamically as the user scrolls.
+6. **Quality Assurance**: Perform memory profiling confirming the footprint remains under 100MB even for millions of words.
 
 ## Phase 4: Extended Syntax & Rich Elements
 **Goal**: Perfect alignment with the ChatGPT App feature sets.
