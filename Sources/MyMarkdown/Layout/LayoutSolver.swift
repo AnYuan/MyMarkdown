@@ -19,10 +19,12 @@ public final class LayoutSolver {
     
     private let theme: Theme
     private let textCalculator: TextKitCalculator
+    private let cache: LayoutCache
     
-    public init(theme: Theme = .default) {
+    public init(theme: Theme = .default, cache: LayoutCache = LayoutCache()) {
         self.theme = theme
         self.textCalculator = TextKitCalculator()
+        self.cache = cache
     }
     
     /// Recursively calculates the layout for a node and all its children.
@@ -31,7 +33,15 @@ public final class LayoutSolver {
     ///   - node: The root AST node.
     ///   - maxWidth: The maximum layout boundaries (e.g. view width).
     /// - Returns: A fully calculated `LayoutResult` tree holding sizes and attributed strings.
-    public func solve(node: MarkdownNode, constrainedToWidth maxWidth: CGFloat) -> LayoutResult {
+    public func solve(node: MarkdownNode, constrainedToWidth maxWidth: CGFloat) async -> LayoutResult {
+        // Yield to the system to keep scroll rendering incredibly smooth for giant files
+        // This is the cooperative multitasking layer
+        await Task.yield()
+        
+        // Return instantly if we already calculated this specific layout at this width
+        if let cached = cache.getLayout(for: node, constrainedToWidth: maxWidth) {
+            return cached
+        }
         
         // 1. Convert AST to styled NSAttributedString based on Theme
         let styledString = createAttributedString(for: node)
@@ -46,17 +56,22 @@ public final class LayoutSolver {
         
         if let doc = node as? DocumentNode {
             for child in doc.children {
-                childLayouts.append(solve(node: child, constrainedToWidth: maxWidth))
+                childLayouts.append(await solve(node: child, constrainedToWidth: maxWidth))
             }
         }
         
-        // Return strictly immutable frame container
-        return LayoutResult(
+        // strictly immutable frame container
+        let result = LayoutResult(
             node: node,
             size: size,
             attributedString: styledString,
             children: childLayouts
         )
+        
+        // Memoize the result
+        cache.setLayout(result, constrainedToWidth: maxWidth)
+        
+        return result
     }
     
     // MARK: - Internal Styling
