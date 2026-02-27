@@ -39,8 +39,8 @@ public class MarkdownCollectionView: NSView {
     private func setup() {
         // 1. Configure the Flow Layout
         flowLayout.minimumInteritemSpacing = 0
-        flowLayout.minimumLineSpacing = 0
-        flowLayout.sectionInset = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
+        flowLayout.minimumLineSpacing = 12
+        flowLayout.sectionInset = NSEdgeInsets(top: 8, left: 0, bottom: 8, right: 0)
         
         // 2. Configure the Collection View
         collectionView.collectionViewLayout = flowLayout
