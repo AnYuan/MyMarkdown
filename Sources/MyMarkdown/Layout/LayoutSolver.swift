@@ -143,45 +143,58 @@ public final class LayoutSolver {
             string.append(highlighted)
             
         case let list as ListNode:
-            for child in list.children {
-                let childAttr = await createAttributedString(for: child, constrainedToWidth: maxWidth)
+            let compactStyle = NSMutableParagraphStyle()
+            compactStyle.lineHeightMultiple = theme.paragraph.lineHeightMultiple
+            compactStyle.paragraphSpacing = 4
+
+            let listAttrs: [NSAttributedString.Key: Any] = [
+                .font: theme.paragraph.font,
+                .paragraphStyle: compactStyle,
+                .foregroundColor: theme.textColor.foreground
+            ]
+
+            for (itemIndex, child) in list.children.enumerated() {
+                guard let item = child as? ListItemNode else { continue }
+
                 if string.length > 0 {
                     string.append(NSAttributedString(string: "\n"))
                 }
-                string.append(childAttr)
-            }
 
-        case let listItem as ListItemNode:
-            let baseAttrs = defaultAttributes(for: theme.paragraph)
+                // Determine prefix: checkbox > ordered number > bullet
+                var prefix: String
+                switch item.checkbox {
+                case .checked: prefix = "☑ "
+                case .unchecked: prefix = "☐ "
+                case .none:
+                    prefix = list.isOrdered ? "\(itemIndex + 1). " : "• "
+                }
+                string.append(NSAttributedString(string: prefix, attributes: listAttrs))
 
-            var preText = "• "
-            switch listItem.checkbox {
-            case .checked: preText = "☑ "
-            case .unchecked: preText = "☐ "
-            case .none: break
-            }
-
-            string.append(NSAttributedString(string: preText, attributes: baseAttrs))
-
-            for child in listItem.children {
-                if let para = child as? ParagraphNode {
-                    string.append(buildInlineAttributedString(from: para.children, baseAttributes: baseAttrs))
-                } else if let nestedList = child as? ListNode {
-                    let nestedAttr = await createAttributedString(for: nestedList, constrainedToWidth: maxWidth)
-                    string.append(NSAttributedString(string: "\n"))
-                    // Indent nested list items
-                    let indented = NSMutableAttributedString(attributedString: nestedAttr)
-                    let indentStyle = NSMutableParagraphStyle()
-                    indentStyle.headIndent = 20
-                    indentStyle.firstLineHeadIndent = 20
-                    indentStyle.lineHeightMultiple = theme.paragraph.lineHeightMultiple
-                    indented.addAttribute(.paragraphStyle, value: indentStyle, range: NSRange(location: 0, length: indented.length))
-                    string.append(indented)
-                } else {
-                    let childAttr = await createAttributedString(for: child, constrainedToWidth: maxWidth)
-                    string.append(childAttr)
+                // Render item content
+                for itemChild in item.children {
+                    if let para = itemChild as? ParagraphNode {
+                        string.append(buildInlineAttributedString(from: para.children, baseAttributes: listAttrs))
+                    } else if let nestedList = itemChild as? ListNode {
+                        let nestedAttr = await createAttributedString(for: nestedList, constrainedToWidth: maxWidth)
+                        string.append(NSAttributedString(string: "\n"))
+                        let indented = NSMutableAttributedString(attributedString: nestedAttr)
+                        let indentStyle = NSMutableParagraphStyle()
+                        indentStyle.headIndent = 20
+                        indentStyle.firstLineHeadIndent = 20
+                        indentStyle.lineHeightMultiple = theme.paragraph.lineHeightMultiple
+                        indentStyle.paragraphSpacing = 4
+                        indented.addAttribute(.paragraphStyle, value: indentStyle, range: NSRange(location: 0, length: indented.length))
+                        string.append(indented)
+                    } else {
+                        let childAttr = await createAttributedString(for: itemChild, constrainedToWidth: maxWidth)
+                        string.append(childAttr)
+                    }
                 }
             }
+
+        case is ListItemNode:
+            // ListItems are handled inside ListNode above; this case handles orphans
+            break
 
         case let blockQuote as BlockQuoteNode:
             let quoteStyle = NSMutableParagraphStyle()
@@ -368,19 +381,12 @@ public final class LayoutSolver {
         let headAttrs: [NSAttributedString.Key: Any] = [
             .font: boldFont,
             .paragraphStyle: paragraphStyle,
-            .foregroundColor: theme.textColor.foreground,
-            .backgroundColor: theme.tableColor.background
+            .foregroundColor: theme.textColor.foreground
         ]
         let bodyAttrs: [NSAttributedString.Key: Any] = [
             .font: theme.paragraph.font,
             .paragraphStyle: paragraphStyle,
-            .foregroundColor: theme.textColor.foreground,
-            .backgroundColor: theme.tableColor.background
-        ]
-        let separatorAttrs: [NSAttributedString.Key: Any] = [
-            .font: theme.paragraph.font,
-            .paragraphStyle: paragraphStyle,
-            .foregroundColor: Color.gray
+            .foregroundColor: theme.textColor.foreground
         ]
 
         for section in table.children {
@@ -403,8 +409,13 @@ public final class LayoutSolver {
                 result.append(NSAttributedString(string: rowText + "\n", attributes: isHead ? headAttrs : bodyAttrs))
             }
             if isHead {
-                let separator = String(repeating: "─", count: 30)
-                result.append(NSAttributedString(string: separator + "\n", attributes: separatorAttrs))
+                let separator = String(repeating: "─", count: 40)
+                let sepAttrs: [NSAttributedString.Key: Any] = [
+                    .font: theme.paragraph.font,
+                    .paragraphStyle: paragraphStyle,
+                    .foregroundColor: Color.gray
+                ]
+                result.append(NSAttributedString(string: separator + "\n", attributes: sepAttrs))
             }
         }
         return result
