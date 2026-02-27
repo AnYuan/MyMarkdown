@@ -42,7 +42,10 @@ let package = Package(
         ),
         .testTarget(
             name: "MarkdownKitTests",
-            dependencies: ["MarkdownKit"]
+            dependencies: ["MarkdownKit"],
+            resources: [
+                .copy("Fixtures")
+            ]
         ),
     ]
 )
