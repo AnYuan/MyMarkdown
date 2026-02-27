@@ -6,15 +6,28 @@ import Markdown
 public struct MarkdownKitVisitor: MarkupVisitor {
     public typealias Result = [MarkdownNode]
     
-    public init() {}
+    /// The maximum allowed recursion depth to prevent Stack Overflow exploits
+    private let maxDepth: Int
+    private var currentDepth: Int = 0
+    
+    public init(maxDepth: Int = 50) {
+        self.maxDepth = maxDepth
+    }
     
     // MARK: - Core Entry Point
     
     public mutating func defaultVisit(_ markup: Markup) -> [MarkdownNode] {
+        guard currentDepth < maxDepth else {
+            // If depth exceeds limit, stop traversing and return a dummy node to prevent crash
+            return []
+        }
+        
+        currentDepth += 1
         var children: [MarkdownNode] = []
         for child in markup.children {
             children.append(contentsOf: visit(child))
         }
+        currentDepth -= 1
         return children
     }
     
