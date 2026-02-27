@@ -16,7 +16,7 @@
 | P1 | Concurrency guarantees are implicit | `TextKit` objects are class-based and reused; future parallel solve calls may race | Document thread model and enforce isolation boundary (queue/actor or per-task instances) | No shared mutable `TextKit` state accessed concurrently |
 | P1 | (Improved) Documentation drift (coverage + feature docs) | Coverage docs now updated to reflect 165 tests | Continue updating after each test/feature change | Docs reflect current code and test status |
 | P2 | (Partially resolved) Platform test matrix is uneven | macOS UI now tested (8 tests); iOS DataSource still untested | Add iOS DataSource tests and CI matrix notes | Critical rendering paths covered on both target platforms |
-| P2 | Performance targets lack reproducible benchmark baseline | Hard to detect regressions over time | Add reproducible benchmark scenario + output format using `PerformanceProfiler` | Baseline numbers versioned in docs and comparable per commit |
+| P2 | (Resolved) Performance targets lack reproducible benchmark baseline | Hard to detect regressions over time | Add reproducible benchmark scenario + output format using `PerformanceProfiler` | Baseline numbers versioned in docs and comparable per commit. See `docs/BENCHMARK_BASELINE.md` |
 
 ## Recommended Execution Order
 
