@@ -4,7 +4,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "MyMarkdown",
+    name: "MarkdownKit",
     platforms: [
         .iOS(.v17),
         .macOS("26.0") // Targeting macOS 26.0 per user request
@@ -12,12 +12,12 @@ let package = Package(
     products: [
         // Products define the executables and libraries a package produces, making them visible to other packages.
         .library(
-            name: "MyMarkdown",
-            targets: ["MyMarkdown"]
+            name: "MarkdownKit",
+            targets: ["MarkdownKit"]
         ),
         .executable(
-            name: "MyMarkdownDemo",
-            targets: ["MyMarkdownDemo"]
+            name: "MarkdownKitDemo",
+            targets: ["MarkdownKitDemo"]
         )
     ],
     dependencies: [
@@ -29,7 +29,7 @@ let package = Package(
         // Targets are the basic building blocks of a package, defining a module or a test suite.
         // Targets can depend on other targets in this package and products from dependencies.
         .target(
-            name: "MyMarkdown",
+            name: "MarkdownKit",
             dependencies: [
                 .product(name: "Markdown", package: "swift-markdown"),
                 .product(name: "Splash", package: "Splash"),
@@ -37,12 +37,12 @@ let package = Package(
             ]
         ),
         .executableTarget(
-            name: "MyMarkdownDemo",
-            dependencies: ["MyMarkdown"]
+            name: "MarkdownKitDemo",
+            dependencies: ["MarkdownKit"]
         ),
         .testTarget(
-            name: "MyMarkdownTests",
-            dependencies: ["MyMarkdown"]
+            name: "MarkdownKitTests",
+            dependencies: ["MarkdownKit"]
         ),
     ]
 )

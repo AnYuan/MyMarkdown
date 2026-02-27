@@ -8,7 +8,7 @@ sequenceDiagram
     actor User
     participant Demo as "DemoApp / Preview"
     participant Parser as "MarkdownParser"
-    participant Visitor as "MyMarkdownVisitor"
+    participant Visitor as "MarkdownKitVisitor"
     participant Plugin as "ASTPlugin Chain"
     participant Solver as "LayoutSolver"
     participant Cache as "LayoutCache"

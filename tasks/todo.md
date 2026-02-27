@@ -1,9 +1,9 @@
 # Implementation Checklist (Atomic Commits)
 
 ## Setup
-- [x] Initialize standard Swift Package `MyMarkdown` workspace
+- [x] Initialize standard Swift Package `MarkdownKit` workspace
 - [x] Add Apple's `swift-markdown` library as a dependency
-- [x] Setup base XCTest target `MyMarkdownTests`
+- [x] Setup base XCTest target `MarkdownKitTests`
 - [x] Implement `PerformanceProfiler` utility for benchmarking AST and Layout speeds
 
 ## Phase 1: Parsing Engine (AST)
@@ -50,8 +50,8 @@
 - [x] Add UI Snapshot Tests for Code Block and Math rendering parity (Substituted by Unit Tests due to missing Host App)
 
 ## Phase 5: Delivery & Polish
-- [x] Profile and resolve any memory leaks associated with image loading or TextKit caches (Demo App `MyMarkdownDemo` Provided)
-- [x] Profile and resolve scrolling hitches using Instruments (Demo App `MyMarkdownDemo` Provided)
+- [x] Profile and resolve any memory leaks associated with image loading or TextKit caches (Demo App `MarkdownKitDemo` Provided)
+- [x] Profile and resolve scrolling hitches using Instruments (Demo App `MarkdownKitDemo` Provided)
 - [x] Final architecture documentation and code hygiene review
 
 ## Phase 6: GitHub Advanced Formatting Alignment (PRD §7)

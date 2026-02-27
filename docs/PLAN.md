@@ -9,7 +9,7 @@ This document breaks down the execution strategy to fulfill the requirements def
 
 ## Phase 1: Core Parsing Engine
 **Goal**: Integrate `swift-markdown` and construct our proprietary, thread-safe Abstract Syntax Tree (AST) models.
-1. Initialize the Swift Package inside the `MyMarkdown` workspace and import Apple's `swift-markdown`.
+1. Initialize the Swift Package inside the `MarkdownKit` workspace and import Apple's `swift-markdown`.
 2. Create internal AST node structures (e.g., `DocumentNode`, `ParagraphNode`, `ImageNode`, `CodeBlockNode`, `MathNode`).
 3. Implement a `MarkupVisitor` to parse the `cmark-gfm` output strictly into our internal thread-safe models.
 4. Establish the AST Middleware/Plugin system allowing arbitrary manipulation of nodes before moving to the rendering phase.

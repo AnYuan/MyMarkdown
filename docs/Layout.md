@@ -1,7 +1,7 @@
 # Asynchronous Layout Engine
 
 ## Overview
-The `MyMarkdown` Layout Engine strictly adheres to the architectural philosophies of Pinterest's Texture (AsyncDisplayKit). Its sole responsibility is measuring text bounds and calculating layout frames entirely off the main thread.
+The `MarkdownKit` Layout Engine strictly adheres to the architectural philosophies of Pinterest's Texture (AsyncDisplayKit). Its sole responsibility is measuring text bounds and calculating layout frames entirely off the main thread.
 
 ## Components
 

@@ -1,6 +1,6 @@
-# MyMarkdown
+# MarkdownKit
 
-MyMarkdown is a high-performance native Markdown renderer for Apple platforms, built in Swift with `swift-markdown` and TextKit-based layout.
+MarkdownKit is a high-performance native Markdown renderer for Apple platforms, built in Swift with `swift-markdown` and TextKit-based layout.
 
 ## Highlights
 
@@ -22,13 +22,13 @@ MyMarkdown is a high-performance native Markdown renderer for Apple platforms, b
 ```bash
 swift build
 swift test
-swift run MyMarkdownDemo
+swift run MarkdownKitDemo
 ```
 
 ## Basic Usage
 
 ```swift
-import MyMarkdown
+import MarkdownKit
 
 let parser = MarkdownParser(
     plugins: [
@@ -38,7 +38,7 @@ let parser = MarkdownParser(
     ]
 )
 
-let document = parser.parse("# Hello MyMarkdown")
+let document = parser.parse("# Hello MarkdownKit")
 let solver = LayoutSolver()
 let layout = await solver.solve(node: document, constrainedToWidth: 800)
 print(layout.children.count)
@@ -46,8 +46,8 @@ print(layout.children.count)
 
 ## Project Structure
 
-- `Sources/MyMarkdown`: core parser, AST nodes, plugins, layout engine, UI components
-- `Sources/MyMarkdownDemo`: demo app
-- `Tests/MyMarkdownTests`: unit/integration tests
+- `Sources/MarkdownKit`: core parser, AST nodes, plugins, layout engine, UI components
+- `Sources/MarkdownKitDemo`: demo app
+- `Tests/MarkdownKitTests`: unit/integration tests
 - `docs/`: PRD, feature notes, roadmap
 - `tasks/`: implementation checklist

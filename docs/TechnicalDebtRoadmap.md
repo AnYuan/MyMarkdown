@@ -10,7 +10,7 @@
 | Priority | Debt Item | Current Impact | Recommended Action | Done Criteria |
 |---|---|---|---|---|
 | P0 | (Resolved) Table rendering strategy mismatch (code vs test vs docs) | Previously caused CI red and ambiguity | Canonicalized to native `NSTextTable` rendering in implementation, tests, and docs | `swift test` all green; single documented table strategy |
-| P0 | Public API facade is empty (`MyMarkdown.swift`) | Integration path for consumers is unclear | Add a minimal stable facade (`parse + layout + render model`) and keep internals behind it | External caller can render markdown without touching internal classes directly |
+| P0 | Public API facade is empty (`MarkdownKit.swift`) | Integration path for consumers is unclear | Add a minimal stable facade (`parse + layout + render model`) and keep internals behind it | External caller can render markdown without touching internal classes directly |
 | P1 | Math rendering parity and determinism | UIKit/macOS behavior can diverge; snapshot sizing is fallback-based | Unify platform behavior, make size extraction explicit, and define fallback policy | Same markdown math yields equivalent visual output across supported platforms |
 | P1 | Concurrency guarantees are implicit | `TextKit` objects are class-based and reused; future parallel solve calls may race | Document thread model and enforce isolation boundary (queue/actor or per-task instances) | No shared mutable `TextKit` state accessed concurrently |
 | P1 | Documentation drift (coverage + feature docs) | Engineering decisions are based on stale text | Update coverage and feature docs after each test/feature change | Docs reflect current code and test status |
@@ -34,7 +34,7 @@
 
 ### Batch B (Short term)
 
-- Introduce public API facade in `MyMarkdown.swift`.
+- Introduce public API facade in `MarkdownKit.swift`.
 - Document thread-safety contract for layout and async rendering components.
 
 ### Batch C (Stabilization)

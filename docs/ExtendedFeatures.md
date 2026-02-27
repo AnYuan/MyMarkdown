@@ -1,6 +1,6 @@
 # ChatGPT Parity Extended Features
 
-To reach full feature parity with ChatGPT's sophisticated rendering application, the `MyMarkdown` engine integrates several advanced modules beyond standard CommonMark layout.
+To reach full feature parity with ChatGPT's sophisticated rendering application, the `MarkdownKit` engine integrates several advanced modules beyond standard CommonMark layout.
 
 ## 1. Syntax Highlighting (Splash)
 Instead of relying on heavy JavaScript-based libraries (like `highlight.js`) embedded inside web views, the engine natively parses code strings using [Splash](https://github.com/JohnSundell/Splash). 
@@ -31,7 +31,7 @@ When OS-level appearances change (e.g. User transitions from Light to Dark mode)
 
 ## 6. GitHub-Style Collapsed Sections (`<details>/<summary>`)
 - `DetailsExtractionPlugin` converts raw HTML details syntax into dedicated `DetailsNode` and `SummaryNode` models, preserving optional `open` state.
-- `MyMarkdownVisitor` now retains `HTMLBlock` content as `TextNode` so details tags are not dropped during AST conversion.
+- `MarkdownKitVisitor` now retains `HTMLBlock` content as `TextNode` so details tags are not dropped during AST conversion.
 - `LayoutSolver` renders summary rows with disclosure indicators (`▶` closed / `▼` open), and conditionally renders the body only when expanded.
 - Demo app pipeline now chains `Details + Diagram + Math` plugins so collapsed sections, diagram fences, and math syntax coexist in one pass.
 

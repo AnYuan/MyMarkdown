@@ -1,7 +1,7 @@
 # Virtualized Rendering UI
 
 ## Overview
-Phase 3 bridges the Asynchronous Layout Engine (Phase 2) to the actual hardware pixels. The core problem `MyMarkdown` solves is typical Markdown renderers use giant `UITextView` or `WKWebView` containers. When a document has 200,000 words or 50 images, these monolithic views consume hundreds of megabytes of RAM and lock up the main thread during rendering.
+Phase 3 bridges the Asynchronous Layout Engine (Phase 2) to the actual hardware pixels. The core problem `MarkdownKit` solves is typical Markdown renderers use giant `UITextView` or `WKWebView` containers. When a document has 200,000 words or 50 images, these monolithic views consume hundreds of megabytes of RAM and lock up the main thread during rendering.
 
 We solve this using **Collection View Virtualization** combined with **Texture (AsyncDisplayKit) Display States**.
 

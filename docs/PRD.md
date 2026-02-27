@@ -91,7 +91,7 @@ This section defines parity targets based on GitHub Docs:
 
 ### 7.1. Feature Matrix (Syntax + Rendering + Scope)
 
-| Feature | Syntax/Behavior from GitHub Docs | Rendering Requirements in MyMarkdown | Scope |
+| Feature | Syntax/Behavior from GitHub Docs | Rendering Requirements in MarkdownKit | Scope |
 |---|---|---|---|
 | Collapsed sections | `<details><summary>Title</summary> ... </details>` and a blank line after `</summary>` | Render a collapsible block with summary row + disclosure state, preserving markdown content inside | In scope |
 | Code blocks | Triple backticks fenced blocks, optional language identifier, 4-space indented blocks, nested fences supported via quadruple backticks | Monospace, syntax-highlighted block, border/background, copy button, optional language chip | In scope |
@@ -118,7 +118,7 @@ For markdown-rendered blocks, style must approximate GitHub documentation visual
 
 1. Some features are only active in specific GitHub contexts (issues, pull requests, discussions, wiki, files with `.md` extension).
 2. Renderer should implement syntax and visuals consistently, but platform workflow semantics (closing issues, attachments upload pipeline, permalink generation) remain host-app responsibilities.
-3. When behavior is context-dependent, MyMarkdown must expose extension hooks rather than hardcode GitHub backend semantics.
+3. When behavior is context-dependent, MarkdownKit must expose extension hooks rather than hardcode GitHub backend semantics.
 
 ### 7.4. Acceptance Criteria for Parity
 

@@ -1,4 +1,4 @@
-# MyMarkdown 单元测试覆盖率报告
+# MarkdownKit 单元测试覆盖率报告
 
 > 最近更新: 2026-02-27
 > 测试框架: XCTest
@@ -37,7 +37,7 @@
 
 ## 已有测试明细
 
-### MyMarkdownTests.swift (2 个测试)
+### MarkdownKitTests.swift (2 个测试)
 
 | 测试方法 | 覆盖内容 |
 |---------|---------|
@@ -67,7 +67,7 @@
 | 文件 | 已覆盖 | 未覆盖 |
 |------|--------|--------|
 | MarkdownParser.swift | `parse(_:)` 基本调用 | Plugin 执行链路 |
-| MyMarkdownVisitor.swift | visitDocument, visitHeading, visitParagraph, visitText, visitCodeBlock, visitImage (6/17) | visitInlineCode, visitLink, visitOrderedList, visitUnorderedList, visitListItem, visitTable, visitTableHead, visitTableBody, visitTableRow, visitTableCell, visitInlineHTML (11/17) |
+| MarkdownKitVisitor.swift | visitDocument, visitHeading, visitParagraph, visitText, visitCodeBlock, visitImage (6/17) | visitInlineCode, visitLink, visitOrderedList, visitUnorderedList, visitListItem, visitTable, visitTableHead, visitTableBody, visitTableRow, visitTableCell, visitInlineHTML (11/17) |
 | ASTPlugin.swift | — | 协议定义完全未测试，无具体实现测试 |
 
 ### Nodes 模块
@@ -149,10 +149,10 @@
 | 缺口 | 影响 | 涉及文件 |
 |------|------|---------|
 | TextKitCalculator | 尺寸计算引擎，布局正确性基础 | TextKitCalculator.swift |
-| Link 解析与渲染 | 超链接是 Markdown 基础元素 | LinkNode.swift, MyMarkdownVisitor.swift, LayoutSolver.swift |
-| List / Checkbox | 列表和任务清单是高频使用功能 | ListNode.swift, ListItemNode.swift, MyMarkdownVisitor.swift, LayoutSolver.swift |
-| Table | GFM 表格，包括列对齐 | TableNode.swift (+ Head/Body/Row/Cell), MyMarkdownVisitor.swift, LayoutSolver.swift |
-| InlineCode | 行内代码是常用内联元素 | InlineCodeNode.swift, MyMarkdownVisitor.swift |
+| Link 解析与渲染 | 超链接是 Markdown 基础元素 | LinkNode.swift, MarkdownKitVisitor.swift, LayoutSolver.swift |
+| List / Checkbox | 列表和任务清单是高频使用功能 | ListNode.swift, ListItemNode.swift, MarkdownKitVisitor.swift, LayoutSolver.swift |
+| Table | GFM 表格，包括列对齐 | TableNode.swift (+ Head/Body/Row/Cell), MarkdownKitVisitor.swift, LayoutSolver.swift |
+| InlineCode | 行内代码是常用内联元素 | InlineCodeNode.swift, MarkdownKitVisitor.swift |
 
 ### P1 — 重要功能低覆盖
 
