@@ -141,6 +141,47 @@ public struct MyMarkdownVisitor: MarkupVisitor {
         return [node]
     }
     
+    // MARK: - Inline Formatting
+
+    public mutating func visitEmphasis(_ emphasis: Emphasis) -> [MarkdownNode] {
+        let children = defaultVisit(emphasis)
+        let node = EmphasisNode(range: emphasis.range, children: children)
+        return [node]
+    }
+
+    public mutating func visitStrong(_ strong: Strong) -> [MarkdownNode] {
+        let children = defaultVisit(strong)
+        let node = StrongNode(range: strong.range, children: children)
+        return [node]
+    }
+
+    public mutating func visitStrikethrough(_ strikethrough: Strikethrough) -> [MarkdownNode] {
+        let children = defaultVisit(strikethrough)
+        let node = StrikethroughNode(range: strikethrough.range, children: children)
+        return [node]
+    }
+
+    // MARK: - Block Elements
+
+    public mutating func visitBlockQuote(_ blockQuote: BlockQuote) -> [MarkdownNode] {
+        let children = defaultVisit(blockQuote)
+        let node = BlockQuoteNode(range: blockQuote.range, children: children)
+        return [node]
+    }
+
+    public mutating func visitThematicBreak(_ thematicBreak: ThematicBreak) -> [MarkdownNode] {
+        let node = ThematicBreakNode(range: thematicBreak.range)
+        return [node]
+    }
+
+    public mutating func visitSoftBreak(_ softBreak: SoftBreak) -> [MarkdownNode] {
+        return [TextNode(range: softBreak.range, text: " ")]
+    }
+
+    public mutating func visitLineBreak(_ lineBreak: LineBreak) -> [MarkdownNode] {
+        return [TextNode(range: lineBreak.range, text: "\n")]
+    }
+
     // MARK: - Math (Extensions)
     
     /// swift-markdown does not support native `Math` elements by default in standard CommonMark.
