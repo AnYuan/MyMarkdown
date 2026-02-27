@@ -57,7 +57,7 @@ final class LayoutSolverExtendedTests: XCTestCase {
         XCTAssertGreaterThan(text.count, 0, "Table text should not be empty")
     }
 
-    func testTableLayoutAppliesTabStops() async throws {
+    func testTableLayoutUsesMonospacedPaddedColumns() async throws {
         let markdown = """
         | Left | Right |
         |:-----|------:|
@@ -71,13 +71,18 @@ final class LayoutSolverExtendedTests: XCTestCase {
             return
         }
 
-        var foundTabStops = false
-        attrStr.enumerateAttribute(.paragraphStyle, in: NSRange(location: 0, length: attrStr.length)) { value, _, _ in
-            if let style = value as? NSParagraphStyle, !style.tabStops.isEmpty {
-                foundTabStops = true
-            }
-        }
-        XCTAssertTrue(foundTabStops, "Table attributed string should have tab stops")
+        let text = attrStr.string
+        XCTAssertFalse(text.contains("\t"), "Table layout should not rely on tab characters")
+
+        let lines = text
+            .split(separator: "\n", omittingEmptySubsequences: true)
+            .map(String.init)
+        XCTAssertGreaterThanOrEqual(lines.count, 3, "Expected header, separator, and body lines")
+
+        // Current table strategy uses fixed-width padded columns, so line widths should match.
+        let lineLengths = lines.map(\.count)
+        XCTAssertEqual(Set(lineLengths).count, 1, "All rendered table lines should share the same width")
+        XCTAssertTrue(lines.contains(where: { $0.contains("─") }), "Expected a rendered header separator line")
     }
 
     func testHeaderLevelsUseCorrectThemeTokens() async throws {

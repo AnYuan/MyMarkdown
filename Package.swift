@@ -23,6 +23,7 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/apple/swift-markdown.git", branch: "main"),
         .package(url: "https://github.com/JohnSundell/Splash.git", from: "0.16.0"),
+        .package(url: "https://github.com/colinc86/MathJaxSwift.git", from: "3.4.0"),
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
@@ -31,7 +32,8 @@ let package = Package(
             name: "MyMarkdown",
             dependencies: [
                 .product(name: "Markdown", package: "swift-markdown"),
-                .product(name: "Splash", package: "Splash")
+                .product(name: "Splash", package: "Splash"),
+                .product(name: "MathJaxSwift", package: "MathJaxSwift")
             ]
         ),
         .executableTarget(

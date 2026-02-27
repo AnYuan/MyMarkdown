@@ -1,6 +1,15 @@
 {
-  "originHash" : "ef4651072cff03ee71ef560ab2a3db06017cb0281d2dd41ad677177b52537724",
+  "originHash" : "2e65022e037ad43315adb183895e990d8a04e40b10fdbced6e136bca178eaacc",
   "pins" : [
+    {
+      "identity" : "mathjaxswift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/colinc86/MathJaxSwift.git",
+      "state" : {
+        "revision" : "e23d6eab941da699ac4a60fb0e60f3ba5c937459",
+        "version" : "3.4.0"
+      }
+    },
     {
       "identity" : "splash",
       "kind" : "remoteSourceControl",

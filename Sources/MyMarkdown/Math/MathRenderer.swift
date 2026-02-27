@@ -7,6 +7,7 @@ import Foundation
 
 #if canImport(WebKit)
 import WebKit
+import MathJaxSwift
 
 #if canImport(UIKit)
 import UIKit
@@ -16,123 +17,192 @@ import AppKit
 public typealias NativeImage = NSImage
 #endif
 
-/// A high-performance utility that converts LaTeX math strings (e.g. `\frac{1}{2}`) 
-/// into pre-rendered images using MathJax running headlessly in a background `WKWebView`.
-///
-/// Because instantiating `WKWebView` is expensive, this renderer maintains a 
-/// shared pool/singleton of an invisible web view loaded with the MathJax library.
+/// Converts LaTeX to SVG with `MathJaxSwift` (JavaScriptCore) and rasterizes the SVG
+/// with a shared hidden `WKWebView` for use in `NSTextAttachment`.
 public final class MathRenderer: NSObject, WKNavigationDelegate {
-    
+
     public static let shared = MathRenderer()
-    
+
+    private struct PendingRender {
+        let svg: String
+        let completion: (NativeImage?) -> Void
+    }
+
+    private actor Engine {
+        private var mathJax: MathJax?
+
+        func tex2svg(_ latex: String, display: Bool) throws -> String {
+            let engine: MathJax
+            if let existing = mathJax {
+                engine = existing
+            } else {
+                let created = try MathJax(preferredOutputFormat: .svg)
+                mathJax = created
+                engine = created
+            }
+
+            let conversionOptions = ConversionOptions(display: display)
+            return try engine.tex2svg(
+                latex,
+                css: false,
+                assistiveMml: false,
+                container: false,
+                styles: false,
+                conversionOptions: conversionOptions
+            )
+        }
+    }
+
+    private let engine = Engine()
+
     private var webView: WKWebView?
-    private var isReady = false
-    private var pendingTasks: [(String, (NativeImage?) -> Void)] = []
-    
+    private var isWebViewReady = false
+    private var pendingRenders: [PendingRender] = []
+    private var isProcessingRender = false
+
     private override init() {
         super.init()
         setupBackgroundWebView()
     }
-    
+
+    public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        isWebViewReady = true
+        drainRenderQueue()
+    }
+
+    /// Converts LaTeX and asynchronously returns a rasterized image.
+    /// - Parameters:
+    ///   - latex: Raw TeX input.
+    ///   - display: `true` for block equation layout, `false` for inline.
+    ///   - completion: Completion callback returning rendered image or `nil`.
+    public func render(latex: String, display: Bool = false, completion: @escaping (NativeImage?) -> Void) {
+        Task { [weak self] in
+            guard let self else {
+                completion(nil)
+                return
+            }
+
+            let svg: String
+            do {
+                svg = try await engine.tex2svg(latex, display: display)
+            } catch {
+                print("MathJaxSwift conversion failed: \(error)")
+                completion(nil)
+                return
+            }
+
+            self.pendingRenders.append(PendingRender(svg: svg, completion: completion))
+            self.drainRenderQueue()
+        }
+    }
+
     private func setupBackgroundWebView() {
-        // Ensure WebKit initialization happens on the main thread
         DispatchQueue.main.async {
             let config = WKWebViewConfiguration()
-            let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 800, height: 600), configuration: config)
+            let webView = WKWebView(frame: .zero, configuration: config)
             webView.navigationDelegate = self
-            
-            // Load a minimal HTML string containing the CDN MathJax library
-            // For production, this library should be bundled locally to avoid network requests,
-            // but for this MVP, CDN guarantees ChatGPT parity.
+
+            #if canImport(UIKit)
+            webView.isOpaque = false
+            webView.backgroundColor = .clear
+            #elseif canImport(AppKit)
+            webView.setValue(false, forKey: "drawsBackground")
+            #endif
+
             let html = """
             <!DOCTYPE html>
             <html>
             <head>
-                <script>
-                    MathJax = {
-                        tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
-                        svg: { fontCache: 'global' },
-                        startup: { typeset: false }
-                    };
-                </script>
-                <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <style>
+                html, body { margin: 0; padding: 0; background: transparent; overflow: hidden; }
+                #math-root { display: inline-block; margin: 0; padding: 0; }
+              </style>
             </head>
             <body>
-                <div id="math-container"></div>
+              <div id="math-root"></div>
             </body>
             </html>
             """
-            
+
             self.webView = webView
             webView.loadHTMLString(html, baseURL: nil)
         }
     }
-    
-    public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        isReady = true
-        // Flush any equations that were requested while the engine was booting up
-        for task in pendingTasks {
-            processEquation(task.0, completion: task.1)
-        }
-        pendingTasks.removeAll()
-    }
-    
-    /// Converts a LaTeX string into a rasterized image asynchronously.
-    public func render(latex: String, completion: @escaping (NativeImage?) -> Void) {
-        if !isReady {
-            pendingTasks.append((latex, completion))
-        } else {
-            processEquation(latex, completion: completion)
+
+    private func drainRenderQueue() {
+        guard isWebViewReady, !isProcessingRender, !pendingRenders.isEmpty else { return }
+
+        isProcessingRender = true
+        let next = pendingRenders.removeFirst()
+        processSVG(next.svg) { [weak self] image in
+            next.completion(image)
+            guard let self else { return }
+            self.isProcessingRender = false
+            self.drainRenderQueue()
         }
     }
-    
-    private func processEquation(_ latex: String, completion: @escaping (NativeImage?) -> Void) {
-        // Javascript to command MathJax to typeset the SVG, then extract the bounding box size
-        // and trigger a native snapshot.
-        let escapedLatex = latex.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
-        
+
+    private func processSVG(_ svg: String, completion: @escaping (NativeImage?) -> Void) {
+        guard let webView else {
+            completion(nil)
+            return
+        }
+
+        let base64SVG = Data(svg.utf8).base64EncodedString()
         let js = """
         (function() {
-            const container = document.getElementById('math-container');
-            container.innerHTML = '\\\\( \(escapedLatex) \\\\)';
-            return MathJax.typesetPromise([container]).then(() => {
-                const svg = container.querySelector('svg');
-                if (!svg) return null;
-                
-                // Extract dimensions
-                const width = svg.getAttribute('width');
-                const height = svg.getAttribute('height');
-                return { width: width, height: height, html: svg.outerHTML };
-            }).catch(err => {
-                return null;
-            });
+          const root = document.getElementById('math-root');
+          if (!root) { return null; }
+          root.innerHTML = window.atob('\(base64SVG)');
+          const svg = root.querySelector('svg');
+          if (!svg) { return null; }
+          const rect = svg.getBoundingClientRect();
+          return {
+            width: Math.max(1, Math.ceil(rect.width)),
+            height: Math.max(1, Math.ceil(rect.height))
+          };
         })();
         """
-        
-        // Execute JS exclusively on the main loop where WebKit lives
-        DispatchQueue.main.async { [weak self] in
-            guard let webView = self?.webView else {
+
+        webView.evaluateJavaScript(js) { [weak self] result, error in
+            guard let self else {
                 completion(nil)
                 return
             }
-            
-            webView.evaluateJavaScript(js) { (result, error) in
-                guard error == nil else {
-                    completion(nil)
-                    return
-                }
-                
-                // In a full implementation, we would parse the SVG HTML here and 
-                // use CoreGraphics to natively draw the vector paths to a CGContext.
-                // For this prototype, we'll leverage a direct WKWebView snapshot of the bounding box.
-                let config = WKSnapshotConfiguration()
-                // Assume 100x50 generic size for now as a fallback if the JS promise dimension extraction fails
-                config.rect = CGRect(x: 0, y: 0, width: 200, height: 100) 
-                
-                webView.takeSnapshot(with: config) { image, error in
-                    completion(image)
-                }
+
+            guard error == nil,
+                  let dimensions = result as? [String: Any],
+                  let width = dimensions["width"] as? Double,
+                  let height = dimensions["height"] as? Double else {
+                completion(nil)
+                return
             }
+
+            let clampedSize = CGSize(
+                width: min(max(width, 1), 4096),
+                height: min(max(height, 1), 4096)
+            )
+            self.snapshotCurrentSVG(in: webView, size: clampedSize, completion: completion)
+        }
+    }
+
+    private func snapshotCurrentSVG(
+        in webView: WKWebView,
+        size: CGSize,
+        completion: @escaping (NativeImage?) -> Void
+    ) {
+        webView.frame = CGRect(origin: .zero, size: size)
+
+        let config = WKSnapshotConfiguration()
+        config.rect = CGRect(origin: .zero, size: size)
+
+        webView.takeSnapshot(with: config) { image, error in
+            guard error == nil else {
+                completion(nil)
+                return
+            }
+            completion(image)
         }
     }
 }

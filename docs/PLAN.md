@@ -3,6 +3,10 @@
 ## Executive Summary
 This document breaks down the execution strategy to fulfill the requirements defined in the PRD. The objective is to build a high-performance, ChatGPT-aligned Markdown renderer for iOS 17.0+ and macOS 26.0+ via Swift 6.0+. The architecture emphasizes background layout calculation, extensive syntactical support (including LaTeX math), and an extensible AST middleware.
 
+## Related Docs
+- Technical debt roadmap: `docs/TechnicalDebtRoadmap.md`
+- Rendering sequence diagram: `docs/RenderingPipelineSequence.md`
+
 ## Phase 1: Core Parsing Engine
 **Goal**: Integrate `swift-markdown` and construct our proprietary, thread-safe Abstract Syntax Tree (AST) models.
 1. Initialize the Swift Package inside the `MyMarkdown` workspace and import Apple's `swift-markdown`.

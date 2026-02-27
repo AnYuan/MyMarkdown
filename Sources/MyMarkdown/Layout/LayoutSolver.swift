@@ -95,21 +95,23 @@ public final class LayoutSolver {
             string.append(NSAttributedString(string: text.text, attributes: attributes))
             
         case let math as MathNode:
-            // Suspend the LayoutSolver Task while WebKit evaluates the JavaScript via MathJax
-            if let image = await renderMath(latex: math.equation) {
-                #if canImport(UIKit)
+            // Suspend while MathJaxSwift converts TeX to SVG and the renderer rasterizes attachment image
+            if let image = await renderMath(latex: math.equation, display: !math.isInline) {
                 let attachment = NSTextAttachment()
+                #if canImport(UIKit)
                 attachment.image = image
-                
-                // For Inline Math, align with text baseline. For Block, span available width if needed.
+                #elseif canImport(AppKit)
+                attachment.image = image
+                #endif
+
+                // For inline math, slightly nudge baseline for better visual alignment.
                 let offsetY: CGFloat = math.isInline ? -4.0 : 0.0
                 attachment.bounds = CGRect(x: 0, y: offsetY, width: image.size.width, height: image.size.height)
-                
+
                 let attrString = NSAttributedString(attachment: attachment)
                 string.append(attrString)
-                #endif
             } else {
-                // Fallback to raw text if WebKit JS execution fails 
+                // Fallback to raw text if conversion/rasterization fails.
                 let attr = defaultAttributes(for: theme.codeBlock)
                 string.append(NSAttributedString(string: math.equation, attributes: attr))
             }
@@ -244,10 +246,10 @@ public final class LayoutSolver {
     }
     
     // MARK: - Async Math Helper
-    private func renderMath(latex: String) async -> NativeImage? {
+    private func renderMath(latex: String, display: Bool) async -> NativeImage? {
         return await withCheckedContinuation { continuation in
             Task { @MainActor in
-                MathRenderer.shared.render(latex: latex) { image in
+                MathRenderer.shared.render(latex: latex, display: display) { image in
                     continuation.resume(returning: image)
                 }
             }
@@ -396,7 +398,7 @@ public final class LayoutSolver {
             .foregroundColor: theme.textColor.foreground
         ]
 
-        for (rowIdx, row) in allRows.enumerated() {
+        for row in allRows {
             let attrs = row.isHead ? headAttrs : baseAttrs
             var line = ""
             for (col, text) in row.cells.enumerated() where col < colCount {
@@ -416,4 +418,3 @@ public final class LayoutSolver {
         return result
     }
 }
-
