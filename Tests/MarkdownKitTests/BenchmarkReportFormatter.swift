@@ -56,6 +56,48 @@ struct BenchmarkReportFormatter {
         print("")
     }
 
+    /// Prints a report with arbitrary named sections.
+    static func printSections(_ sections: [(title: String, results: [BenchmarkResult])]) {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let dateStr = dateFormatter.string(from: Date())
+
+        let arch: String = {
+            #if arch(arm64)
+            return "arm64"
+            #elseif arch(x86_64)
+            return "x86_64"
+            #else
+            return "unknown"
+            #endif
+        }()
+
+        let platform: String = {
+            #if os(macOS)
+            return "macOS"
+            #elseif os(iOS)
+            return "iOS"
+            #else
+            return "unknown"
+            #endif
+        }()
+
+        let totalWidth = 78
+
+        print("")
+        printBorder(totalWidth)
+        printCentered("MarkdownKit Deep Benchmark Report", width: totalWidth)
+        printCentered("\(dateStr) · \(platform) · \(arch)", width: totalWidth)
+        printBorder(totalWidth)
+
+        for section in sections where !section.results.isEmpty {
+            printPhase(section.title, results: section.results, totalWidth: totalWidth)
+        }
+
+        printBorder(totalWidth)
+        print("")
+    }
+
     // MARK: - Internal
 
     private static let opWidth = 32

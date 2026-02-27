@@ -231,4 +231,104 @@ enum BenchmarkFixtures {
         ("table-heavy", tableHeavy),
         ("math-heavy", mathHeavy),
     ]
+
+    // MARK: - Per-node-type isolated fixtures
+
+    /// 20 headers (H1-H3) with inline formatting, no other block types.
+    static let headersOnly: String = {
+        (1...20).map { idx in
+            let level = ((idx - 1) % 3) + 1
+            return "\(String(repeating: "#", count: level)) Header \(idx) with **bold** and *italic*"
+        }.joined(separator: "\n\n")
+    }()
+
+    /// 20 paragraphs with full inline formatting variety.
+    static let paragraphsOnly: String = {
+        (1...20).map { idx in
+            "Paragraph \(idx) with **bold text**, *italic text*, `inline code`, ~~strikethrough~~, and a [link](https://example.com/\(idx)). Additional text to make this paragraph substantive enough for realistic measurement."
+        }.joined(separator: "\n\n")
+    }()
+
+    /// 5 fenced code blocks in different languages, 15 lines each.
+    static let codeBlocksOnly: String = {
+        let languages = ["swift", "python", "javascript", "rust", "go"]
+        return languages.enumerated().map { (idx, lang) in
+            "```\(lang)\n" + (1...15).map { "let x\($0) = compute(\($0), factor: \(idx))" }.joined(separator: "\n") + "\n```"
+        }.joined(separator: "\n\n")
+    }()
+
+    /// 5 groups of 8-item unordered lists.
+    static let unorderedListsOnly: String = {
+        (1...5).map { section in
+            (1...8).map { item in
+                "- List \(section) item \(item) with **bold** content"
+            }.joined(separator: "\n")
+        }.joined(separator: "\n\n")
+    }()
+
+    /// 5 groups of 8-item ordered lists.
+    static let orderedListsOnly: String = {
+        (1...5).map { section in
+            (1...8).enumerated().map { (idx, _) in
+                "\(idx + 1). Ordered list \(section) item \(idx + 1) with *italic* content"
+            }.joined(separator: "\n")
+        }.joined(separator: "\n\n")
+    }()
+
+    /// 15 blockquotes with inline formatting.
+    static let blockQuotesOnly: String = {
+        (1...15).map { idx in
+            "> Blockquote \(idx) with **bold** and *italic* formatting and a [link](https://example.com)."
+        }.joined(separator: "\n\n")
+    }()
+
+    /// 3 tables (4 columns × 10 rows each).
+    static let tablesOnly: String = {
+        (1...3).map { tableIdx in
+            let cols = 4
+            let header = "| " + (1...cols).map { "Col\($0)" }.joined(separator: " | ") + " |"
+            let sep = "| " + (1...cols).map { _ in "------" }.joined(separator: " | ") + " |"
+            let rows = (1...10).map { row in
+                "| " + (1...cols).map { "T\(tableIdx)R\(row)C\($0)" }.joined(separator: " | ") + " |"
+            }.joined(separator: "\n")
+            return header + "\n" + sep + "\n" + rows
+        }.joined(separator: "\n\n")
+    }()
+
+    /// 20 thematic breaks (minimal cost baseline).
+    static let thematicBreaksOnly: String = {
+        (1...20).map { _ in "---" }.joined(separator: "\n\n")
+    }()
+
+    /// Keyed collection for per-node-type iteration.
+    static let nodeTypeFixtures: [(name: String, content: String)] = [
+        ("headers", headersOnly),
+        ("paragraphs", paragraphsOnly),
+        ("code-blocks", codeBlocksOnly),
+        ("unordered-lists", unorderedListsOnly),
+        ("ordered-lists", orderedListsOnly),
+        ("blockquotes", blockQuotesOnly),
+        ("tables", tablesOnly),
+        ("thematic-breaks", thematicBreaksOnly),
+    ]
+
+    // MARK: - Scaling fixtures
+
+    /// Generates a paragraph-heavy document of the specified line count.
+    static func scalingFixture(lineCount: Int) -> String {
+        var lines: [String] = []
+        lines.append("# Scaling Test (\(lineCount) lines)")
+        lines.append("")
+        for idx in 1...lineCount {
+            lines.append("Paragraph \(idx) with **bold**, *italic*, `code`, and a [link](https://example.com/\(idx)).")
+            lines.append("")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    static let scalingSizes: [Int] = [10, 50, 200, 1000]
+
+    static let scalingFixtures: [(name: String, content: String)] = scalingSizes.map {
+        ("\($0)-lines", scalingFixture(lineCount: $0))
+    }
 }
