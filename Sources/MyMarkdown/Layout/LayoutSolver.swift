@@ -151,7 +151,6 @@ public final class LayoutSolver {
             string.append(highlighted)
             
         case let list as ListNode:
-            // Just stack list children with some indentation
             for child in list.children {
                 let childAttr = await createAttributedString(for: child, constrainedToWidth: maxWidth)
                 if string.length > 0 {
@@ -159,25 +158,78 @@ public final class LayoutSolver {
                 }
                 string.append(childAttr)
             }
-            
+
         case let listItem as ListItemNode:
-            let attributes = defaultAttributes(for: theme.paragraph)
-            
-            // Add Checkbox or Bullet
+            let baseAttrs = defaultAttributes(for: theme.paragraph)
+
             var preText = "• "
             switch listItem.checkbox {
             case .checked: preText = "☑ "
             case .unchecked: preText = "☐ "
             case .none: break
             }
-            
-            string.append(NSAttributedString(string: preText, attributes: attributes))
-            
+
+            string.append(NSAttributedString(string: preText, attributes: baseAttrs))
+
             for child in listItem.children {
-                let childAttr = await createAttributedString(for: child, constrainedToWidth: maxWidth)
-                string.append(childAttr)
+                if let para = child as? ParagraphNode {
+                    string.append(buildInlineAttributedString(from: para.children, baseAttributes: baseAttrs))
+                } else if let nestedList = child as? ListNode {
+                    let nestedAttr = await createAttributedString(for: nestedList, constrainedToWidth: maxWidth)
+                    string.append(NSAttributedString(string: "\n"))
+                    // Indent nested list items
+                    let indented = NSMutableAttributedString(attributedString: nestedAttr)
+                    let indentStyle = NSMutableParagraphStyle()
+                    indentStyle.headIndent = 20
+                    indentStyle.firstLineHeadIndent = 20
+                    indentStyle.lineHeightMultiple = theme.paragraph.lineHeightMultiple
+                    indented.addAttribute(.paragraphStyle, value: indentStyle, range: NSRange(location: 0, length: indented.length))
+                    string.append(indented)
+                } else {
+                    let childAttr = await createAttributedString(for: child, constrainedToWidth: maxWidth)
+                    string.append(childAttr)
+                }
             }
-            
+
+        case let blockQuote as BlockQuoteNode:
+            let quoteStyle = NSMutableParagraphStyle()
+            quoteStyle.headIndent = 16
+            quoteStyle.firstLineHeadIndent = 16
+            quoteStyle.lineHeightMultiple = theme.paragraph.lineHeightMultiple
+            quoteStyle.paragraphSpacing = theme.paragraph.paragraphSpacing
+
+            for child in blockQuote.children {
+                if let para = child as? ParagraphNode {
+                    var quoteAttrs = defaultAttributes(for: theme.paragraph)
+                    quoteAttrs[.paragraphStyle] = quoteStyle
+                    quoteAttrs[.foregroundColor] = Color.gray
+                    let inlineStr = buildInlineAttributedString(from: para.children, baseAttributes: quoteAttrs)
+
+                    // Prepend quote bar
+                    let bar = NSAttributedString(string: "┃ ", attributes: [
+                        .foregroundColor: Color.systemBlue,
+                        .font: theme.paragraph.font,
+                        .paragraphStyle: quoteStyle
+                    ])
+                    string.append(bar)
+                    string.append(inlineStr)
+                } else {
+                    let childAttr = await createAttributedString(for: child, constrainedToWidth: maxWidth)
+                    string.append(childAttr)
+                }
+                if string.length > 0 {
+                    string.append(NSAttributedString(string: "\n"))
+                }
+            }
+
+        case is ThematicBreakNode:
+            let hrAttrs: [NSAttributedString.Key: Any] = [
+                .font: theme.paragraph.font,
+                .foregroundColor: Color.gray
+            ]
+            let line = String(repeating: "─", count: 40)
+            string.append(NSAttributedString(string: line, attributes: hrAttrs))
+
         default:
             break
         }
@@ -216,6 +268,33 @@ public final class LayoutSolver {
         }
     }
     
+    // MARK: - Font Trait Helper
+
+    private func fontWithTrait(_ font: Font, trait: FontTrait) -> Font {
+        #if canImport(UIKit)
+        let descriptor = font.fontDescriptor
+        var traits = descriptor.symbolicTraits
+        switch trait {
+        case .bold: traits.insert(.traitBold)
+        case .italic: traits.insert(.traitItalic)
+        }
+        if let newDescriptor = descriptor.withSymbolicTraits(traits) {
+            return Font(descriptor: newDescriptor, size: 0)
+        }
+        return font
+        #elseif canImport(AppKit)
+        let manager = NSFontManager.shared
+        switch trait {
+        case .bold: return manager.convert(font, toHaveTrait: .boldFontMask)
+        case .italic: return manager.convert(font, toHaveTrait: .italicFontMask)
+        }
+        #endif
+    }
+
+    private enum FontTrait {
+        case bold, italic
+    }
+
     // MARK: - Inline Attributed String Builder
 
     /// Builds a rich NSAttributedString from inline children, preserving styles
@@ -252,9 +331,26 @@ public final class LayoutSolver {
                 let altText = image.altText ?? image.source ?? "image"
                 result.append(NSAttributedString(string: "[\(altText)]", attributes: imgAttrs))
 
+            case is EmphasisNode:
+                var italicAttrs = baseAttributes
+                if let font = baseAttributes[.font] as? Font {
+                    italicAttrs[.font] = fontWithTrait(font, trait: .italic)
+                }
+                result.append(buildInlineAttributedString(from: child.children, baseAttributes: italicAttrs))
+
+            case is StrongNode:
+                var boldAttrs = baseAttributes
+                if let font = baseAttributes[.font] as? Font {
+                    boldAttrs[.font] = fontWithTrait(font, trait: .bold)
+                }
+                result.append(buildInlineAttributedString(from: child.children, baseAttributes: boldAttrs))
+
+            case is StrikethroughNode:
+                var strikeAttrs = baseAttributes
+                strikeAttrs[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
+                result.append(buildInlineAttributedString(from: child.children, baseAttributes: strikeAttrs))
+
             default:
-                // Recursively handle emphasis, strong, etc.
-                // Check if this is a container that swift-markdown wraps for bold/italic
                 let childResult = buildInlineAttributedString(from: child.children, baseAttributes: baseAttributes)
                 if childResult.length > 0 {
                     result.append(childResult)
