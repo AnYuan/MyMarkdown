@@ -23,6 +23,12 @@ This execution wave prioritizes automated verification before adding more featur
 3. Run layout passes at narrow, medium, and wide widths.
 4. Assert baseline invariants: non-empty output, finite geometry, stable child counts.
 
+**Status (2026-02-27)**: In progress
+- [x] Table-driven syntax matrix suite added (`SyntaxMatrixTests`)
+- [x] Active plugin chain validation added (details + diagrams + math)
+- [x] Width matrix assertions added (narrow/medium/wide)
+- [x] Baseline layout invariants added (non-empty output, finite geometry, stable child counts)
+
 ### Phase C: Targeted Regression Pack
 **Goal**: prevent recurrence of known rendering failures.
 1. Add explicit regression tests for details toggle state handling.
