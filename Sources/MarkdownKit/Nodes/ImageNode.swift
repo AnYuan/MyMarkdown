@@ -21,7 +21,7 @@ public struct ImageNode: InlineNode {
     
     public init(range: SourceRange?, source: String?, altText: String?, title: String?) {
         self.range = range
-        self.source = source
+        self.source = URLSanitizer.sanitize(source)
         self.altText = altText
         self.title = title
     }

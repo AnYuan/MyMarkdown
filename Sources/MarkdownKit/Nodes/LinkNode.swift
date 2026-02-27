@@ -17,7 +17,7 @@ public struct LinkNode: InlineNode {
     
     public init(range: SourceRange?, destination: String?, title: String?, children: [MarkdownNode]) {
         self.range = range
-        self.destination = destination
+        self.destination = URLSanitizer.sanitize(destination)
         self.title = title
         self.children = children
     }
