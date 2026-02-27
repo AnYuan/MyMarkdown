@@ -1,6 +1,12 @@
 import XCTest
 @testable import MyMarkdown
 
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
+
 final class LayoutSolverExtendedTests: XCTestCase {
 
     func testListLayoutProducesNonZeroSize() async throws {
@@ -57,11 +63,31 @@ final class LayoutSolverExtendedTests: XCTestCase {
         XCTAssertGreaterThan(text.count, 0, "Table text should not be empty")
     }
 
-    func testTableLayoutUsesMonospacedPaddedColumns() async throws {
+    func testTableLayoutRetainsHeaderContent() async throws {
         let markdown = """
-        | Left | Right |
-        |:-----|------:|
-        | x    | y     |
+        | Feature | Status | Priority |
+        |:--------|:------:|--------:|
+        | Parsing | Done | High |
+        """
+        let layout = await TestHelper.solveLayout(markdown, width: 700)
+        let tableLayout = layout.children[0]
+
+        guard let text = tableLayout.attributedString?.string else {
+            XCTFail("Table layout missing attributed string")
+            return
+        }
+
+        XCTAssertTrue(text.contains("Feature"))
+        XCTAssertTrue(text.contains("Status"))
+        XCTAssertTrue(text.contains("Priority"))
+        XCTAssertFalse(text.contains("|---"), "Rendered table should not expose raw markdown separator syntax")
+    }
+
+    func testTableLayoutUsesNativeTextTableBlocks() async throws {
+        let markdown = """
+        | Left | Center | Right |
+        |:-----|:------:|------:|
+        | x    | y      | z     |
         """
         let layout = await TestHelper.solveLayout(markdown, width: 600)
         let tableLayout = layout.children[0]
@@ -72,17 +98,120 @@ final class LayoutSolverExtendedTests: XCTestCase {
         }
 
         let text = attrStr.string
-        XCTAssertFalse(text.contains("\t"), "Table layout should not rely on tab characters")
+        XCTAssertFalse(text.contains("|"), "Rendered table should not rely on text pipes")
 
-        let lines = text
-            .split(separator: "\n", omittingEmptySubsequences: true)
-            .map(String.init)
-        XCTAssertGreaterThanOrEqual(lines.count, 3, "Expected header, separator, and body lines")
+        var tableBlocks: [NSTextTableBlock] = []
+        var foundCenterAlignedCell = false
 
-        // Current table strategy uses fixed-width padded columns, so line widths should match.
-        let lineLengths = lines.map(\.count)
-        XCTAssertEqual(Set(lineLengths).count, 1, "All rendered table lines should share the same width")
-        XCTAssertTrue(lines.contains(where: { $0.contains("─") }), "Expected a rendered header separator line")
+        attrStr.enumerateAttribute(
+            .paragraphStyle,
+            in: NSRange(location: 0, length: attrStr.length)
+        ) { value, _, _ in
+            guard let style = value as? NSParagraphStyle else { return }
+            for block in style.textBlocks {
+                if let tableBlock = block as? NSTextTableBlock {
+                    tableBlocks.append(tableBlock)
+                    if style.alignment == .center {
+                        foundCenterAlignedCell = true
+                    }
+                }
+            }
+        }
+
+        XCTAssertFalse(tableBlocks.isEmpty, "Expected table rendering to use NSTextTableBlock")
+        XCTAssertEqual(tableBlocks.first?.table.numberOfColumns, 3)
+        XCTAssertTrue(foundCenterAlignedCell, "Expected center alignment to be propagated to paragraph style")
+    }
+
+    func testTableLayoutAppliesHeaderAndAlternatingRowBackgrounds() async throws {
+        let markdown = """
+        | Col A | Col B |
+        |:------|------:|
+        | r1a   | r1b   |
+        | r2a   | r2b   |
+        """
+        let layout = await TestHelper.solveLayout(markdown, width: 600)
+        let tableLayout = layout.children[0]
+
+        guard let attrStr = tableLayout.attributedString else {
+            XCTFail("Table layout missing attributed string")
+            return
+        }
+
+        var headerHasBackground = false
+        var firstBodyHasBackground = false
+        var secondBodyHasBackground = false
+
+        attrStr.enumerateAttribute(
+            .paragraphStyle,
+            in: NSRange(location: 0, length: attrStr.length)
+        ) { value, _, _ in
+            guard let style = value as? NSParagraphStyle else { return }
+            for block in style.textBlocks {
+                guard let tableBlock = block as? NSTextTableBlock else { continue }
+                let hasBackground = alpha(of: tableBlock.backgroundColor) > 0.01
+                switch tableBlock.startingRow {
+                case 0: headerHasBackground = headerHasBackground || hasBackground
+                case 1: firstBodyHasBackground = firstBodyHasBackground || hasBackground
+                case 2: secondBodyHasBackground = secondBodyHasBackground || hasBackground
+                default: break
+                }
+            }
+        }
+
+        XCTAssertTrue(headerHasBackground, "Header row should have a background fill")
+        XCTAssertFalse(firstBodyHasBackground, "First body row should remain unshaded")
+        XCTAssertTrue(secondBodyHasBackground, "Second body row should use zebra striping")
+    }
+
+    func testClosedDetailsLayoutShowsOnlySummaryRow() async throws {
+        let markdown = """
+        <details>
+        <summary>Build status</summary>
+
+        Hidden body.
+        </details>
+        """
+
+        let layout = await TestHelper.solveLayout(
+            markdown,
+            width: 700,
+            plugins: [DetailsExtractionPlugin()]
+        )
+        let detailsLayout = layout.children[0]
+
+        guard let text = detailsLayout.attributedString?.string else {
+            XCTFail("Details layout missing attributed string")
+            return
+        }
+
+        XCTAssertTrue(text.contains("▶ Build status"))
+        XCTAssertFalse(text.contains("Hidden body."))
+    }
+
+    func testOpenDetailsLayoutShowsSummaryAndBody() async throws {
+        let markdown = """
+        <details open>
+        <summary>Build status</summary>
+
+        Visible body.
+        </details>
+        """
+
+        let layout = await TestHelper.solveLayout(
+            markdown,
+            width: 700,
+            plugins: [DetailsExtractionPlugin()]
+        )
+        let detailsLayout = layout.children[0]
+
+        guard let text = detailsLayout.attributedString?.string else {
+            XCTFail("Details layout missing attributed string")
+            return
+        }
+
+        XCTAssertTrue(text.contains("▼ Build status"))
+        XCTAssertTrue(text.contains("Visible body."))
     }
 
     func testHeaderLevelsUseCorrectThemeTokens() async throws {
@@ -120,8 +249,51 @@ final class LayoutSolverExtendedTests: XCTestCase {
         XCTAssertGreaterThan(attrCount, 0)
     }
 
+    func testCodeBlockLayoutPrependsLanguageLabelWhenPresent() async throws {
+        let markdown = """
+        ```swift
+        let x = 1
+        ```
+        """
+        let layout = await TestHelper.solveLayout(markdown)
+        let codeLayout = layout.children[0]
+
+        guard let text = codeLayout.attributedString?.string else {
+            XCTFail("Code layout missing attributed string")
+            return
+        }
+
+        XCTAssertTrue(text.hasPrefix("SWIFT\n"), "Expected uppercase language label prefix in code block")
+    }
+
+    func testCodeBlockLayoutOmitsLanguageLabelWhenMissing() async throws {
+        let markdown = """
+        ```
+        plain text
+        ```
+        """
+        let layout = await TestHelper.solveLayout(markdown)
+        let codeLayout = layout.children[0]
+
+        guard let text = codeLayout.attributedString?.string else {
+            XCTFail("Code layout missing attributed string")
+            return
+        }
+
+        XCTAssertFalse(text.hasPrefix("SWIFT\n"))
+        XCTAssertTrue(text.contains("plain text"))
+    }
+
     func testEmptyDocumentLayoutProducesZeroChildren() async throws {
         let layout = await TestHelper.solveLayout("")
         XCTAssertEqual(layout.children.count, 0)
     }
+}
+
+private func alpha(of color: Color?) -> CGFloat {
+    #if canImport(UIKit)
+    return color?.cgColor.alpha ?? 0
+    #elseif canImport(AppKit)
+    return color?.alphaComponent ?? 0
+    #endif
 }

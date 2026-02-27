@@ -174,6 +174,11 @@ public struct MyMarkdownVisitor: MarkupVisitor {
         return [node]
     }
 
+    public mutating func visitHTMLBlock(_ html: HTMLBlock) -> [MarkdownNode] {
+        let node = TextNode(range: html.range, text: html.rawHTML)
+        return [node]
+    }
+
     public mutating func visitSoftBreak(_ softBreak: SoftBreak) -> [MarkdownNode] {
         return [TextNode(range: softBreak.range, text: " ")]
     }

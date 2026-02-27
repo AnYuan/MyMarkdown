@@ -180,4 +180,18 @@ final class ParserLinkListTableTests: XCTestCase {
         }
         XCTAssertTrue(foundHTML, "Expected inline HTML to be converted to TextNode")
     }
+
+    func testHTMLBlockFallsBackToTextNode() throws {
+        let markdown = """
+        <details>
+        </details>
+        """
+        let doc = TestHelper.parse(markdown)
+        let textNodes = doc.children.compactMap { $0 as? TextNode }
+        XCTAssertFalse(textNodes.isEmpty)
+
+        let joined = textNodes.map(\.text).joined(separator: "\n")
+        XCTAssertTrue(joined.contains("<details>"))
+        XCTAssertTrue(joined.contains("</details>"))
+    }
 }

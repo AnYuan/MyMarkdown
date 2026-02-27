@@ -84,11 +84,18 @@ public final class LayoutSolver {
         switch node {
         case let table as TableNode:
             string.append(buildTableAttributedString(from: table))
+
+        case let details as DetailsNode:
+            string.append(await buildDetailsAttributedString(from: details, constrainedToWidth: maxWidth))
+
+        case let summary as SummaryNode:
+            let baseAttrs = detailsSummaryAttributes()
+            string.append(await buildInlineAttributedString(from: summary.children, baseAttributes: baseAttrs))
             
         case let header as HeaderNode:
             let token = themeToken(forHeaderLevel: header.level)
             let baseAttrs = defaultAttributes(for: token)
-            string.append(buildInlineAttributedString(from: header.children, baseAttributes: baseAttrs))
+            string.append(await buildInlineAttributedString(from: header.children, baseAttributes: baseAttrs))
             
         case let text as TextNode:
             let attributes = defaultAttributes(for: theme.paragraph)
@@ -104,9 +111,12 @@ public final class LayoutSolver {
                 attachment.image = image
                 #endif
 
-                // For inline math, slightly nudge baseline for better visual alignment.
-                let offsetY: CGFloat = math.isInline ? -4.0 : 0.0
-                attachment.bounds = CGRect(x: 0, y: offsetY, width: image.size.width, height: image.size.height)
+                // Align inline math vertically with surrounding text metrics.
+                attachment.bounds = attachmentBounds(
+                    for: image.size,
+                    isInline: math.isInline,
+                    font: theme.paragraph.font
+                )
 
                 let attrString = NSAttributedString(attachment: attachment)
                 string.append(attrString)
@@ -118,12 +128,10 @@ public final class LayoutSolver {
             
         case let paragraph as ParagraphNode:
             let baseAttrs = defaultAttributes(for: theme.paragraph)
-            string.append(buildInlineAttributedString(from: paragraph.children, baseAttributes: baseAttrs))
+            string.append(await buildInlineAttributedString(from: paragraph.children, baseAttributes: baseAttrs))
             
         case let code as CodeBlockNode:
-            // Process the raw string through our Splash syntax highlighter
-            let highlighted = highlighter.highlight(code.code, language: code.language)
-            string.append(highlighted)
+            string.append(buildCodeBlockAttributedString(from: code))
             
         case let list as ListNode:
             let compactStyle = NSMutableParagraphStyle()
@@ -156,7 +164,7 @@ public final class LayoutSolver {
                 // Render item content
                 for itemChild in item.children {
                     if let para = itemChild as? ParagraphNode {
-                        string.append(buildInlineAttributedString(from: para.children, baseAttributes: listAttrs))
+                        string.append(await buildInlineAttributedString(from: para.children, baseAttributes: listAttrs))
                     } else if let nestedList = itemChild as? ListNode {
                         let nestedAttr = await createAttributedString(for: nestedList, constrainedToWidth: maxWidth)
                         string.append(NSAttributedString(string: "\n"))
@@ -191,7 +199,7 @@ public final class LayoutSolver {
                     var quoteAttrs = defaultAttributes(for: theme.paragraph)
                     quoteAttrs[.paragraphStyle] = quoteStyle
                     quoteAttrs[.foregroundColor] = Color.gray
-                    let inlineStr = buildInlineAttributedString(from: para.children, baseAttributes: quoteAttrs)
+                    let inlineStr = await buildInlineAttributedString(from: para.children, baseAttributes: quoteAttrs)
 
                     // Prepend quote bar
                     let bar = NSAttributedString(string: "┃ ", attributes: [
@@ -283,6 +291,88 @@ public final class LayoutSolver {
         case bold, italic
     }
 
+    // MARK: - Code Block Helper
+
+    private func buildCodeBlockAttributedString(from code: CodeBlockNode) -> NSAttributedString {
+        let result = NSMutableAttributedString()
+
+        if let label = normalizedCodeLanguageLabel(from: code.language) {
+            let labelStyle = NSMutableParagraphStyle()
+            labelStyle.paragraphSpacing = 6
+            labelStyle.lineHeightMultiple = 1.0
+
+            let labelAttrs: [NSAttributedString.Key: Any] = [
+                .font: Font.monospacedSystemFont(ofSize: 11, weight: .semibold),
+                .foregroundColor: Color.secondaryLabelColor,
+                .paragraphStyle: labelStyle
+            ]
+            result.append(NSAttributedString(string: label + "\n", attributes: labelAttrs))
+        }
+
+        // Process the raw string through our Splash syntax highlighter.
+        let highlighted = highlighter.highlight(code.code, language: code.language)
+        result.append(highlighted)
+        return result
+    }
+
+    private func normalizedCodeLanguageLabel(from language: String?) -> String? {
+        guard let language else { return nil }
+        let trimmed = language.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return trimmed.uppercased()
+    }
+
+    // MARK: - Details Helper
+
+    private func buildDetailsAttributedString(
+        from details: DetailsNode,
+        constrainedToWidth maxWidth: CGFloat
+    ) async -> NSAttributedString {
+        let result = NSMutableAttributedString()
+        let summaryAttrs = detailsSummaryAttributes()
+
+        let disclosure = details.isOpen ? "▼ " : "▶ "
+        result.append(NSAttributedString(string: disclosure, attributes: summaryAttrs))
+
+        if let summary = details.summary, !summary.children.isEmpty {
+            let summaryText = await buildInlineAttributedString(
+                from: summary.children,
+                baseAttributes: summaryAttrs
+            )
+            result.append(summaryText)
+        } else {
+            result.append(NSAttributedString(string: "Details", attributes: summaryAttrs))
+        }
+
+        guard details.isOpen else {
+            return result
+        }
+
+        var didAppendBody = false
+        for child in details.children {
+            let childAttr = await createAttributedString(for: child, constrainedToWidth: maxWidth)
+            guard childAttr.length > 0 else { continue }
+
+            if !didAppendBody {
+                result.append(NSAttributedString(string: "\n"))
+                didAppendBody = true
+            } else {
+                result.append(NSAttributedString(string: "\n"))
+            }
+            result.append(childAttr)
+        }
+
+        return result
+    }
+
+    private func detailsSummaryAttributes() -> [NSAttributedString.Key: Any] {
+        var attrs = defaultAttributes(for: theme.paragraph)
+        if let font = attrs[.font] as? Font {
+            attrs[.font] = fontWithTrait(font, trait: .bold)
+        }
+        return attrs
+    }
+
     // MARK: - Inline Attributed String Builder
 
     /// Builds a rich NSAttributedString from inline children, preserving styles
@@ -290,7 +380,7 @@ public final class LayoutSolver {
     private func buildInlineAttributedString(
         from children: [MarkdownNode],
         baseAttributes: [NSAttributedString.Key: Any]
-    ) -> NSAttributedString {
+    ) async -> NSAttributedString {
         let result = NSMutableAttributedString()
         for child in children {
             switch child {
@@ -310,7 +400,7 @@ public final class LayoutSolver {
                 if let dest = link.destination, let url = URL(string: dest) {
                     linkAttrs[.link] = url
                 }
-                let linkText = buildInlineAttributedString(from: link.children, baseAttributes: linkAttrs)
+                let linkText = await buildInlineAttributedString(from: link.children, baseAttributes: linkAttrs)
                 result.append(linkText)
 
             case let image as ImageNode:
@@ -320,34 +410,51 @@ public final class LayoutSolver {
                 result.append(NSAttributedString(string: "[\(altText)]", attributes: imgAttrs))
 
             case let math as MathNode:
-                var mathAttrs = baseAttributes
-                mathAttrs[.font] = theme.codeBlock.font
-                mathAttrs[.foregroundColor] = Color.systemPurple
-                let prefix = math.isInline ? "" : "\n"
-                let suffix = math.isInline ? "" : "\n"
-                result.append(NSAttributedString(string: "\(prefix)\(math.equation)\(suffix)", attributes: mathAttrs))
+                if let image = await renderMath(latex: math.equation, display: !math.isInline) {
+                    let attachment = NSTextAttachment()
+                    #if canImport(UIKit)
+                    attachment.image = image
+                    #elseif canImport(AppKit)
+                    attachment.image = image
+                    #endif
+
+                    let baseFont = (baseAttributes[.font] as? Font) ?? theme.paragraph.font
+                    attachment.bounds = attachmentBounds(
+                        for: image.size,
+                        isInline: math.isInline,
+                        font: baseFont
+                    )
+                    result.append(NSAttributedString(attachment: attachment))
+                } else {
+                    var mathAttrs = baseAttributes
+                    mathAttrs[.font] = theme.codeBlock.font
+                    mathAttrs[.foregroundColor] = Color.systemPurple
+                    let prefix = math.isInline ? "" : "\n"
+                    let suffix = math.isInline ? "" : "\n"
+                    result.append(NSAttributedString(string: "\(prefix)\(math.equation)\(suffix)", attributes: mathAttrs))
+                }
 
             case is EmphasisNode:
                 var italicAttrs = baseAttributes
                 if let font = baseAttributes[.font] as? Font {
                     italicAttrs[.font] = fontWithTrait(font, trait: .italic)
                 }
-                result.append(buildInlineAttributedString(from: child.children, baseAttributes: italicAttrs))
+                result.append(await buildInlineAttributedString(from: child.children, baseAttributes: italicAttrs))
 
             case is StrongNode:
                 var boldAttrs = baseAttributes
                 if let font = baseAttributes[.font] as? Font {
                     boldAttrs[.font] = fontWithTrait(font, trait: .bold)
                 }
-                result.append(buildInlineAttributedString(from: child.children, baseAttributes: boldAttrs))
+                result.append(await buildInlineAttributedString(from: child.children, baseAttributes: boldAttrs))
 
             case is StrikethroughNode:
                 var strikeAttrs = baseAttributes
                 strikeAttrs[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
-                result.append(buildInlineAttributedString(from: child.children, baseAttributes: strikeAttrs))
+                result.append(await buildInlineAttributedString(from: child.children, baseAttributes: strikeAttrs))
 
             default:
-                let childResult = buildInlineAttributedString(from: child.children, baseAttributes: baseAttributes)
+                let childResult = await buildInlineAttributedString(from: child.children, baseAttributes: baseAttributes)
                 if childResult.length > 0 {
                     result.append(childResult)
                 }
@@ -356,65 +463,184 @@ public final class LayoutSolver {
         return result
     }
 
+    private func attachmentBounds(for imageSize: CGSize, isInline: Bool, font: Font) -> CGRect {
+        guard isInline else {
+            return CGRect(origin: .zero, size: imageSize)
+        }
+
+        // Center the attachment against the font's typographic midline.
+        let textMidline = (font.ascender + font.descender) / 2.0
+        let imageMidline = imageSize.height / 2.0
+        let offsetY = textMidline - imageMidline
+
+        return CGRect(x: 0, y: offsetY, width: imageSize.width, height: imageSize.height)
+    }
+
     // MARK: - Table Helper
     private func buildTableAttributedString(from table: TableNode) -> NSAttributedString {
         let result = NSMutableAttributedString()
-        let monoFont = Font.monospacedSystemFont(ofSize: 13, weight: .regular)
-        let boldMono = Font.monospacedSystemFont(ofSize: 13, weight: .bold)
+        let allRows = normalizedTableRows(from: table)
+        let columnCount = allRows.map(\.cells.count).max() ?? 0
+        guard columnCount > 0 else { return result }
 
-        // First pass: collect all cell text and find max column widths
-        var allRows: [(cells: [String], isHead: Bool)] = []
+        let cellFont = theme.paragraph.font
+        let headerFont = fontWithTrait(theme.paragraph.font, trait: .bold)
+
+        let textTable = NSTextTable()
+        textTable.numberOfColumns = columnCount
+        textTable.layoutAlgorithm = .automaticLayoutAlgorithm
+        textTable.collapsesBorders = true
+        textTable.hidesEmptyCells = false
+
+        var bodyRowIndex = 0
+        for (rowIndex, row) in allRows.enumerated() {
+            let rowBackground = tableRowBackgroundColor(
+                isHeader: row.isHead,
+                bodyRowIndex: bodyRowIndex
+            )
+            if !row.isHead {
+                bodyRowIndex += 1
+            }
+
+            let cells = normalizedCells(for: row.cells, columnCount: columnCount)
+            for columnIndex in 0..<columnCount {
+                let block = configuredTableBlock(
+                    table: textTable,
+                    row: rowIndex,
+                    column: columnIndex,
+                    backgroundColor: rowBackground
+                )
+
+                let paragraphStyle = NSMutableParagraphStyle()
+                paragraphStyle.textBlocks = [block]
+                paragraphStyle.paragraphSpacing = 0
+                paragraphStyle.paragraphSpacingBefore = 0
+                paragraphStyle.alignment = textAlignment(
+                    for: table.columnAlignments[safe: columnIndex] ?? nil
+                )
+
+                let attrs: [NSAttributedString.Key: Any] = [
+                    .font: row.isHead ? headerFont : cellFont,
+                    .paragraphStyle: paragraphStyle,
+                    .foregroundColor: theme.textColor.foreground
+                ]
+
+                let cellText = cells[columnIndex].isEmpty ? " " : cells[columnIndex]
+                result.append(NSAttributedString(string: cellText, attributes: attrs))
+                result.append(NSAttributedString(string: "\n", attributes: attrs))
+            }
+        }
+
+        return result
+    }
+
+    private func configuredTableBlock(
+        table: NSTextTable,
+        row: Int,
+        column: Int,
+        backgroundColor: Color
+    ) -> NSTextTableBlock {
+        let block = NSTextTableBlock(
+            table: table,
+            startingRow: row,
+            rowSpan: 1,
+            startingColumn: column,
+            columnSpan: 1
+        )
+
+        block.setWidth(1.0, type: .absoluteValueType, for: .border)
+        block.setWidth(8.0, type: .absoluteValueType, for: .padding)
+        block.setWidth(0.0, type: .absoluteValueType, for: .margin)
+        block.setBorderColor(theme.tableColor.foreground)
+        block.backgroundColor = backgroundColor
+
+        return block
+    }
+
+    private func tableRowBackgroundColor(isHeader: Bool, bodyRowIndex: Int) -> Color {
+        if isHeader {
+            return theme.tableColor.background
+        }
+
+        // GitHub-like zebra striping: apply subtle shading to every other body row.
+        if bodyRowIndex.isMultiple(of: 2) {
+            return .clear
+        }
+        return theme.tableColor.background.withAlphaComponent(0.45)
+    }
+
+    private func textAlignment(for alignment: TableAlignment?) -> NSTextAlignment {
+        switch alignment {
+        case .right:
+            return .right
+        case .center:
+            return .center
+        case .left, .none:
+            return .left
+        }
+    }
+
+    private func normalizedTableRows(from table: TableNode) -> [(cells: [String], isHead: Bool)] {
+        var rows: [(cells: [String], isHead: Bool)] = []
+
         for section in table.children {
             let isHead = section is TableHeadNode
-            let rows = (section as? TableHeadNode)?.children
-                ?? (section as? TableBodyNode)?.children ?? []
-            for row in rows {
-                let cells = (row as? TableRowNode)?.children ?? []
-                let texts = cells.map { cell -> String in
-                    let children = (cell as? TableCellNode)?.children ?? []
-                    return children.compactMap { ($0 as? TextNode)?.text }.joined()
+            let sectionChildren = (section as? TableHeadNode)?.children
+                ?? (section as? TableBodyNode)?.children
+                ?? []
+
+            var directCells: [TableCellNode] = []
+            for child in sectionChildren {
+                if let row = child as? TableRowNode {
+                    let rowCells = row.children.compactMap { $0 as? TableCellNode }
+                    let texts = rowCells.map { tableCellText(from: $0) }
+                    if !texts.isEmpty {
+                        rows.append((cells: texts, isHead: isHead))
+                    }
+                } else if let cell = child as? TableCellNode {
+                    directCells.append(cell)
                 }
-                allRows.append((cells: texts, isHead: isHead))
+            }
+
+            if !directCells.isEmpty {
+                let texts = directCells.map { tableCellText(from: $0) }
+                rows.append((cells: texts, isHead: isHead))
             }
         }
 
-        let colCount = allRows.map(\.cells.count).max() ?? 0
-        guard colCount > 0 else { return result }
+        return rows
+    }
 
-        // Calculate column widths (min 8, padded by 2)
-        var colWidths = [Int](repeating: 8, count: colCount)
-        for row in allRows {
-            for (col, text) in row.cells.enumerated() where col < colCount {
-                colWidths[col] = max(colWidths[col], text.count + 2)
-            }
+    private func normalizedCells(for cells: [String], columnCount: Int) -> [String] {
+        if cells.count >= columnCount {
+            return Array(cells.prefix(columnCount))
         }
+        return cells + Array(repeating: "", count: columnCount - cells.count)
+    }
 
-        let baseAttrs: [NSAttributedString.Key: Any] = [
-            .font: monoFont,
-            .foregroundColor: theme.textColor.foreground
-        ]
-        let headAttrs: [NSAttributedString.Key: Any] = [
-            .font: boldMono,
-            .foregroundColor: theme.textColor.foreground
-        ]
+    private func tableCellText(from cell: TableCellNode) -> String {
+        flattenInlineText(from: cell)
+            .replacingOccurrences(of: "\n", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 
-        for row in allRows {
-            let attrs = row.isHead ? headAttrs : baseAttrs
-            var line = ""
-            for (col, text) in row.cells.enumerated() where col < colCount {
-                line += text.padding(toLength: colWidths[col], withPad: " ", startingAt: 0)
-            }
-            result.append(NSAttributedString(string: line + "\n", attributes: attrs))
-
-            // Add separator after header row
-            if row.isHead {
-                let sep = colWidths.map { String(repeating: "─", count: $0) }.joined()
-                let sepAttrs: [NSAttributedString.Key: Any] = [
-                    .font: monoFont, .foregroundColor: Color.gray
-                ]
-                result.append(NSAttributedString(string: sep + "\n", attributes: sepAttrs))
-            }
+    private func flattenInlineText(from node: MarkdownNode) -> String {
+        switch node {
+        case let text as TextNode:
+            return text.text
+        case let inlineCode as InlineCodeNode:
+            return inlineCode.code
+        case let math as MathNode:
+            return math.equation
+        default:
+            return node.children.map { flattenInlineText(from: $0) }.joined()
         }
-        return result
+    }
+}
+
+private extension Array {
+    subscript(safe index: Int) -> Element? {
+        guard indices.contains(index) else { return nil }
+        return self[index]
     }
 }

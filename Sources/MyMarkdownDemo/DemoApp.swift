@@ -170,7 +170,7 @@ struct MarkdownPreviewRep: NSViewRepresentable {
             await MainActor.run { isRendering = true }
 
             let start = CFAbsoluteTimeGetCurrent()
-            let parser = MarkdownParser(plugins: [MathExtractionPlugin()])
+            let parser = MarkdownParser(plugins: [DetailsExtractionPlugin(), MathExtractionPlugin()])
             let ast = parser.parse(currentMarkdown)
             let solver = LayoutSolver()
             let result = await solver.solve(node: ast, constrainedToWidth: currentWidth)
@@ -206,6 +206,7 @@ enum SyntaxPage: String, CaseIterable, Hashable {
     case tables
     case math
     case blockquote
+    case details
 
     var title: String {
         switch self {
@@ -221,6 +222,7 @@ enum SyntaxPage: String, CaseIterable, Hashable {
         case .tables: return "Tables"
         case .math: return "Math"
         case .blockquote: return "Blockquote"
+        case .details: return "Details"
         }
     }
 
@@ -238,6 +240,7 @@ enum SyntaxPage: String, CaseIterable, Hashable {
         case .tables: return "tablecells"
         case .math: return "function"
         case .blockquote: return "text.quote"
+        case .details: return "chevron.down.square"
         }
     }
 
@@ -386,6 +389,28 @@ enum SyntaxPage: String, CaseIterable, Hashable {
             > Another quote with **bold** and *italic* text inside.
 
             Regular paragraph after the quotes.
+            """
+
+        case .details:
+            return """
+            <details>
+            <summary>Project status</summary>
+
+            - [x] Parser baseline
+            - [x] Table styling
+            - [ ] Diagram rendering
+            </details>
+
+            <details open>
+            <summary>Expanded notes</summary>
+
+            This section is expanded by default because it uses the `open` attribute.
+
+            | Feature | State |
+            |---|---|
+            | Details parsing | Done |
+            | Details rendering | Done |
+            </details>
             """
         }
     }

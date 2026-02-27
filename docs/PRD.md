@@ -73,3 +73,58 @@ The renderer must support the exact Markdown syntax subset utilized by the offic
 - **Test Coverage**: The project demands the highest level of stability. We aim for **near 100% test coverage** across the codebase.
 - **Unit Testing**: Comprehensive XCTest suites for all AST parsing logic, layout calculation engines, and text attribute generation. 
 - **UI/Snapshot Testing**: Automated UI tests and snapshot tests for the rendering layer to ensure zero visual regressions across both iOS and macOS platforms when rendering complex Markdown features (like deeply nested lists or LaTeX equations).
+
+## 7. GitHub Advanced Formatting Parity (Source of Truth)
+
+This section defines parity targets based on GitHub Docs:
+- Working with advanced formatting: <https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting>
+- Organizing information with collapsed sections
+- Creating and highlighting code blocks
+- Creating diagrams
+- About tasklists
+- Organizing information with tables
+- Writing mathematical expressions
+- Autolinked references and URLs
+- Attaching files
+- Creating a permanent link to a code snippet
+- Using keywords in issues and pull requests
+
+### 7.1. Feature Matrix (Syntax + Rendering + Scope)
+
+| Feature | Syntax/Behavior from GitHub Docs | Rendering Requirements in MyMarkdown | Scope |
+|---|---|---|---|
+| Collapsed sections | `<details><summary>Title</summary> ... </details>` and a blank line after `</summary>` | Render a collapsible block with summary row + disclosure state, preserving markdown content inside | In scope |
+| Code blocks | Triple backticks fenced blocks, optional language identifier, 4-space indented blocks, nested fences supported via quadruple backticks | Monospace, syntax-highlighted block, border/background, copy button, optional language chip | In scope |
+| Diagrams | Fenced block language identifiers: `mermaid`, `geojson`, `topojson`, `stl` | Detect diagram fences and render native diagram/preview components with fallback to code block when unsupported | In scope (iterative) |
+| Tasklists | `- [ ]` and `- [x]`, nested tasklists, completion reflects checked items | Checkbox list visuals with proper spacing/indentation; optional interactive toggling in editor mode | In scope |
+| Tables | Pipe + hyphen header syntax, optional edge pipes, blank line before table, alignment markers (`:---`, `:---:`, `---:`) | Native table cell borders, header emphasis/background, alternating row shading, alignment mapping | In scope |
+| Math expressions | Inline `$...$`, block `$$...$$`, and fenced ```math``` | Inline math baseline alignment, block math display mode, deterministic glyph sizing, graceful fallback | In scope |
+| Autolinks | URLs auto-link; issue/PR refs, labels, commit SHAs, mentions, custom autolinks in supported contexts | Convert supported tokens to tappable links with visual style parity and safe fallback for unknown refs | Partial (URL links done, reference linking pending) |
+| Attaching files | GitHub comment editor feature with context-specific supported file types | Not a markdown rendering concern; editor/upload integration belongs to host app layer | Out of renderer scope |
+| Permanent links to code | GitHub code UI action and snippet permalink behavior | Not a markdown parser/layout concern; host app integration only | Out of renderer scope |
+| Issue/PR keywords | Workflow keywords like `close(s)`, `fix(es)`, `resolve(s)` | Not renderer scope; semantic workflow integration belongs to GitHub backend layer | Out of renderer scope |
+
+### 7.2. Visual Style Baseline (GitHub-like)
+
+For markdown-rendered blocks, style must approximate GitHub documentation visuals:
+1. Table: subtle grid borders, bold header row, header fill, zebra-striping for alternate body rows.
+2. Code: monospaced font, syntax colors, neutral background, low-contrast border radius.
+3. Inline code: compact pill-like background with preserved baseline rhythm.
+4. Math: inline formulas vertically centered relative to surrounding text; block formulas separated by block spacing.
+5. Tasklists: checkbox icon + text baseline alignment, nested indentation consistent with list hierarchy.
+6. Links/autolinks: clear hyperlink color and underline/accessibility affordance.
+
+### 7.3. Context-Specific Constraints from GitHub Docs
+
+1. Some features are only active in specific GitHub contexts (issues, pull requests, discussions, wiki, files with `.md` extension).
+2. Renderer should implement syntax and visuals consistently, but platform workflow semantics (closing issues, attachments upload pipeline, permalink generation) remain host-app responsibilities.
+3. When behavior is context-dependent, MyMarkdown must expose extension hooks rather than hardcode GitHub backend semantics.
+
+### 7.4. Acceptance Criteria for Parity
+
+1. Every "In scope" feature above has:
+   - parser coverage (AST tests),
+   - layout/render coverage (unit tests + snapshot where feasible),
+   - explicit fallback behavior.
+2. Visual regressions for table/code/math/tasklist are guarded by tests.
+3. Feature-level docs stay synchronized with implementation status in `tasks/todo.md`.

@@ -113,6 +113,25 @@ final class NodeModelTests: XCTestCase {
         XCTAssertNil(table.columnAlignments[3])
     }
 
+    func testDetailsNodeProperties() {
+        let summary = SummaryNode(range: nil, children: [TextNode(range: nil, text: "Overview")])
+        let details = DetailsNode(
+            range: nil,
+            isOpen: true,
+            summary: summary,
+            children: [ParagraphNode(range: nil, children: [TextNode(range: nil, text: "Body")])]
+        )
+
+        XCTAssertTrue(details.isOpen)
+        XCTAssertEqual((details.summary?.children.first as? TextNode)?.text, "Overview")
+        XCTAssertEqual(details.children.count, 1)
+    }
+
+    func testSummaryNodeHoldsChildren() {
+        let summary = SummaryNode(range: nil, children: [TextNode(range: nil, text: "Summary text")])
+        XCTAssertEqual(summary.children.count, 1)
+    }
+
     // MARK: - UUID Uniqueness
 
     func testEachNodeHasUniqueID() {

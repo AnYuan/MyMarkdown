@@ -10,20 +10,8 @@ public struct MathExtractionPlugin: ASTPlugin {
         // First pass: merge block math ($$..$$) that spans multiple nodes
         let merged = mergeBlockMath(nodes)
 
-        // Second pass: extract inline math ($...$) within paragraphs
-        var result: [MarkdownNode] = []
-        for node in merged {
-            if let paragraph = node as? ParagraphNode {
-                let newChildren = processInlineChildren(paragraph.children)
-                result.append(ParagraphNode(range: paragraph.range, children: newChildren))
-            } else if let header = node as? HeaderNode {
-                let newChildren = processInlineChildren(header.children)
-                result.append(HeaderNode(range: header.range, level: header.level, children: newChildren))
-            } else {
-                result.append(node)
-            }
-        }
-        return result
+        // Second pass: convert fenced math code blocks and extract inline math.
+        return merged.map(transform)
     }
 
     /// Scans top-level nodes for $$ patterns that span across paragraphs.
@@ -96,50 +84,181 @@ public struct MathExtractionPlugin: ASTPlugin {
             if let text = child as? TextNode {
                 result.append(contentsOf: extractInlineMath(from: text))
             } else {
-                result.append(child)
+                result.append(transform(child))
             }
         }
         return result
     }
 
     private func extractInlineMath(from textNode: TextNode) -> [MarkdownNode] {
-        let text = textNode.text
+        let text = Array(textNode.text)
+        guard !text.isEmpty else { return [] }
+
         var result: [MarkdownNode] = []
-        var remaining = text[text.startIndex...]
+        var buffer = ""
+        var idx = 0
 
-        while !remaining.isEmpty {
-            // Look for inline math ($...$) — skip $$ which is block
-            if let dollarRange = remaining.range(of: "$") {
-                // Skip if this is $$ (block delimiter)
-                let afterDollar = remaining[dollarRange.upperBound...]
-                if afterDollar.hasPrefix("$") {
-                    result.append(TextNode(range: nil, text: String(remaining)))
-                    return result
-                }
-
-                let prefix = remaining[remaining.startIndex..<dollarRange.lowerBound]
-                if !prefix.isEmpty {
-                    result.append(TextNode(range: nil, text: String(prefix)))
-                }
-
-                if let closeRange = afterDollar.range(of: "$") {
-                    let equation = String(afterDollar[afterDollar.startIndex..<closeRange.lowerBound])
-                    if !equation.isEmpty && !equation.contains("\n") {
-                        result.append(MathNode(range: nil, style: .inline, equation: equation))
-                        remaining = afterDollar[closeRange.upperBound...]
-                        continue
+        while idx < text.count {
+            if text[idx] == "$", !isEscaped(text, at: idx), !isDoubleDollar(text, at: idx),
+               let close = findClosingDollar(in: text, startingAt: idx + 1) {
+                let equation = String(text[(idx + 1)..<close])
+                if isValidInlineEquation(equation) {
+                    if !buffer.isEmpty {
+                        result.append(TextNode(range: nil, text: buffer))
+                        buffer.removeAll(keepingCapacity: true)
                     }
+                    result.append(MathNode(range: nil, style: .inline, equation: equation))
+                    idx = close + 1
+                    continue
                 }
 
-                // No valid closing $
-                result.append(TextNode(range: nil, text: String(remaining)))
-                return result
+                // If we found a matching pair but it doesn't look like a valid
+                // equation, keep the whole segment literal to avoid re-parsing
+                // the closing `$` as a new opener.
+                buffer.append(contentsOf: String(text[idx...close]))
+                idx = close + 1
+                continue
             }
-
-            result.append(TextNode(range: nil, text: String(remaining)))
-            return result
+            buffer.append(text[idx])
+            idx += 1
         }
 
+        if !buffer.isEmpty {
+            result.append(TextNode(range: nil, text: buffer))
+        }
         return result
+    }
+
+    private func transform(_ node: MarkdownNode) -> MarkdownNode {
+        switch node {
+        case let paragraph as ParagraphNode:
+            return ParagraphNode(range: paragraph.range, children: processInlineChildren(paragraph.children))
+
+        case let header as HeaderNode:
+            return HeaderNode(range: header.range, level: header.level, children: processInlineChildren(header.children))
+
+        case let link as LinkNode:
+            return LinkNode(
+                range: link.range,
+                destination: link.destination,
+                title: link.title,
+                children: processInlineChildren(link.children)
+            )
+
+        case let emphasis as EmphasisNode:
+            return EmphasisNode(range: emphasis.range, children: processInlineChildren(emphasis.children))
+
+        case let strong as StrongNode:
+            return StrongNode(range: strong.range, children: processInlineChildren(strong.children))
+
+        case let strike as StrikethroughNode:
+            return StrikethroughNode(range: strike.range, children: processInlineChildren(strike.children))
+
+        case let quote as BlockQuoteNode:
+            return BlockQuoteNode(range: quote.range, children: quote.children.map(transform))
+
+        case let list as ListNode:
+            return ListNode(range: list.range, isOrdered: list.isOrdered, children: list.children.map(transform))
+
+        case let item as ListItemNode:
+            return ListItemNode(range: item.range, checkbox: item.checkbox, children: item.children.map(transform))
+
+        case let table as TableNode:
+            return TableNode(
+                range: table.range,
+                columnAlignments: table.columnAlignments,
+                children: table.children.map(transform)
+            )
+
+        case let head as TableHeadNode:
+            return TableHeadNode(range: head.range, children: head.children.map(transform))
+
+        case let body as TableBodyNode:
+            return TableBodyNode(range: body.range, children: body.children.map(transform))
+
+        case let row as TableRowNode:
+            return TableRowNode(range: row.range, children: row.children.map(transform))
+
+        case let cell as TableCellNode:
+            return TableCellNode(range: cell.range, children: processInlineChildren(cell.children))
+
+        case let details as DetailsNode:
+            return DetailsNode(
+                range: details.range,
+                isOpen: details.isOpen,
+                summary: details.summary.map { summary in
+                    SummaryNode(
+                        range: summary.range,
+                        children: processInlineChildren(summary.children)
+                    )
+                },
+                children: details.children.map(transform)
+            )
+
+        case let summary as SummaryNode:
+            return SummaryNode(range: summary.range, children: processInlineChildren(summary.children))
+
+        case let code as CodeBlockNode:
+            guard isMathFence(language: code.language) else { return code }
+            let equation = code.code.trimmingCharacters(in: .whitespacesAndNewlines)
+            return MathNode(range: code.range, style: .block, equation: equation)
+
+        default:
+            return node
+        }
+    }
+
+    private func isMathFence(language: String?) -> Bool {
+        guard let language else { return false }
+        switch language.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "math", "latex", "tex":
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func findClosingDollar(in text: [Character], startingAt start: Int) -> Int? {
+        guard start < text.count else { return nil }
+        var idx = start
+        while idx < text.count {
+            if text[idx] == "$", !isEscaped(text, at: idx), !isDoubleDollar(text, at: idx) {
+                return idx
+            }
+            idx += 1
+        }
+        return nil
+    }
+
+    private func isEscaped(_ text: [Character], at index: Int) -> Bool {
+        guard index > 0 else { return false }
+        var slashCount = 0
+        var idx = index - 1
+        while idx >= 0, text[idx] == "\\" {
+            slashCount += 1
+            if idx == 0 { break }
+            idx -= 1
+        }
+        return slashCount % 2 == 1
+    }
+
+    private func isDoubleDollar(_ text: [Character], at index: Int) -> Bool {
+        let hasPrev = index > 0 && text[index - 1] == "$" && !isEscaped(text, at: index - 1)
+        let hasNext = (index + 1) < text.count && text[index + 1] == "$" && !isEscaped(text, at: index + 1)
+        return hasPrev || hasNext
+    }
+
+    private func isValidInlineEquation(_ equation: String) -> Bool {
+        let trimmed = equation.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        guard !equation.contains("\n") else { return false }
+
+        // After CommonMark unescapes `\$...$`, we can no longer distinguish it from
+        // intentional math. Avoid obvious false positives like `$notMath$`.
+        if trimmed.count > 1 && trimmed.allSatisfy(\.isLetter) {
+            return false
+        }
+
+        return true
     }
 }
