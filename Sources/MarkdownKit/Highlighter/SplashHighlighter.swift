@@ -24,12 +24,12 @@ public struct SplashHighlighter {
         self.theme = theme
         
         // Map our global Theme's typography to Splash's specific Font format
-        let splashFont = splashFontFrom(token: theme.codeBlock)
+        let splashFont = splashFontFrom(token: theme.typography.codeBlock)
         
         // Define a custom Splash theme bridging our ColorTokens for Light/Dark mode parity
         let splashTheme = Splash.Theme(
             font: splashFont,
-            plainTextColor: splashColor(from: theme.textColor.foreground),
+            plainTextColor: splashColor(from: theme.colors.textColor.foreground),
             tokenColors: [
                 .keyword: splashColor(from: Color(red: 0.8, green: 0.1, blue: 0.5, alpha: 1.0)), // Pink/Purple
                 .string: splashColor(from: Color(red: 0.9, green: 0.3, blue: 0.3, alpha: 1.0)), // Red

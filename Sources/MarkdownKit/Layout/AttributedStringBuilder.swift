@@ -54,7 +54,7 @@ struct AttributedStringBuilder {
             ))
             
         case let text as TextNode:
-            let attributes = defaultAttributes(for: theme.paragraph)
+            let attributes = defaultAttributes(for: theme.typography.paragraph)
             string.append(NSAttributedString(string: text.text, attributes: attributes))
             
         case let math as MathNode:
@@ -71,19 +71,19 @@ struct AttributedStringBuilder {
                 attachment.bounds = attachmentBounds(
                     for: image.size,
                     isInline: math.isInline,
-                    font: theme.paragraph.font
+                    font: theme.typography.paragraph.font
                 )
 
                 let attrString = NSAttributedString(attachment: attachment)
                 string.append(attrString)
             } else {
                 // Fallback to raw text if conversion/rasterization fails.
-                let attr = defaultAttributes(for: theme.codeBlock)
+                let attr = defaultAttributes(for: theme.typography.codeBlock)
                 string.append(NSAttributedString(string: math.equation, attributes: attr))
             }
             
         case let paragraph as ParagraphNode:
-            let baseAttrs = defaultAttributes(for: theme.paragraph)
+            let baseAttrs = defaultAttributes(for: theme.typography.paragraph)
             string.append(await buildInlineAttributedString(
                 from: paragraph.children,
                 baseAttributes: baseAttrs,
@@ -95,13 +95,13 @@ struct AttributedStringBuilder {
             
         case let list as ListNode:
             let compactStyle = NSMutableParagraphStyle()
-            compactStyle.lineHeightMultiple = theme.paragraph.lineHeightMultiple
+            compactStyle.lineHeightMultiple = theme.typography.paragraph.lineHeightMultiple
             compactStyle.paragraphSpacing = 4
 
             let listAttrs: [NSAttributedString.Key: Any] = [
-                .font: theme.paragraph.font,
+                .font: theme.typography.paragraph.font,
                 .paragraphStyle: compactStyle,
-                .foregroundColor: theme.textColor.foreground
+                .foregroundColor: theme.colors.textColor.foreground
             ]
 
             for (itemIndex, child) in list.children.enumerated() {
@@ -148,7 +148,7 @@ struct AttributedStringBuilder {
                         let indentStyle = NSMutableParagraphStyle()
                         indentStyle.headIndent = 20
                         indentStyle.firstLineHeadIndent = 20
-                        indentStyle.lineHeightMultiple = theme.paragraph.lineHeightMultiple
+                        indentStyle.lineHeightMultiple = theme.typography.paragraph.lineHeightMultiple
                         indentStyle.paragraphSpacing = 4
                         indented.addAttribute(.paragraphStyle, value: indentStyle, range: NSRange(location: 0, length: indented.length))
                         string.append(indented)
@@ -167,12 +167,12 @@ struct AttributedStringBuilder {
             let quoteStyle = NSMutableParagraphStyle()
             quoteStyle.headIndent = 16
             quoteStyle.firstLineHeadIndent = 16
-            quoteStyle.lineHeightMultiple = theme.paragraph.lineHeightMultiple
-            quoteStyle.paragraphSpacing = theme.paragraph.paragraphSpacing
+            quoteStyle.lineHeightMultiple = theme.typography.paragraph.lineHeightMultiple
+            quoteStyle.paragraphSpacing = theme.typography.paragraph.paragraphSpacing
 
             for child in blockQuote.children {
                 if let para = child as? ParagraphNode {
-                    var quoteAttrs = defaultAttributes(for: theme.paragraph)
+                    var quoteAttrs = defaultAttributes(for: theme.typography.paragraph)
                     quoteAttrs[.paragraphStyle] = quoteStyle
                     quoteAttrs[.foregroundColor] = Color.gray
                     let inlineStr = await buildInlineAttributedString(
@@ -184,7 +184,7 @@ struct AttributedStringBuilder {
                     // Prepend quote bar
                     let bar = NSAttributedString(string: "┃ ", attributes: [
                         .foregroundColor: Color.systemBlue,
-                        .font: theme.paragraph.font,
+                        .font: theme.typography.paragraph.font,
                         .paragraphStyle: quoteStyle
                     ])
                     string.append(bar)
@@ -200,7 +200,7 @@ struct AttributedStringBuilder {
 
         case is ThematicBreakNode:
             let hrAttrs: [NSAttributedString.Key: Any] = [
-                .font: theme.paragraph.font,
+                .font: theme.typography.paragraph.font,
                 .foregroundColor: Color.gray
             ]
             let line = String(repeating: "─", count: 40)
@@ -215,9 +215,9 @@ struct AttributedStringBuilder {
     
     private func themeToken(forHeaderLevel level: Int) -> TypographyToken {
         switch level {
-        case 1: return theme.header1
-        case 2: return theme.header2
-        default: return theme.header3
+        case 1: return theme.typography.header1
+        case 2: return theme.typography.header2
+        default: return theme.typography.header3
         }
     }
     
@@ -229,7 +229,7 @@ struct AttributedStringBuilder {
         return [
             .font: token.font,
             .paragraphStyle: paragraphStyle,
-            .foregroundColor: theme.textColor.foreground
+            .foregroundColor: theme.colors.textColor.foreground
         ]
     }
     
@@ -363,7 +363,7 @@ struct AttributedStringBuilder {
     }
 
     private func detailsSummaryAttributes() -> [NSAttributedString.Key: Any] {
-        var attrs = defaultAttributes(for: theme.paragraph)
+        var attrs = defaultAttributes(for: theme.typography.paragraph)
         if let font = attrs[.font] as? Font {
             attrs[.font] = fontWithTrait(font, trait: .bold)
         }
@@ -387,13 +387,13 @@ struct AttributedStringBuilder {
 
             case let code as InlineCodeNode:
                 var codeAttrs = baseAttributes
-                let baseFont = (baseAttributes[.font] as? Font) ?? theme.paragraph.font
+                let baseFont = (baseAttributes[.font] as? Font) ?? theme.typography.paragraph.font
                 codeAttrs[.font] = Font.monospacedSystemFont(
                     ofSize: max(11, baseFont.pointSize * 0.92),
                     weight: .regular
                 )
-                codeAttrs[.foregroundColor] = theme.inlineCodeColor.foreground
-                codeAttrs[.backgroundColor] = theme.inlineCodeColor.background
+                codeAttrs[.foregroundColor] = theme.colors.inlineCodeColor.foreground
+                codeAttrs[.backgroundColor] = theme.colors.inlineCodeColor.background
                 result.append(NSAttributedString(string: code.code, attributes: codeAttrs))
 
             case let link as LinkNode:
@@ -429,7 +429,7 @@ struct AttributedStringBuilder {
                     attachment.image = image
                     #endif
 
-                    let baseFont = (baseAttributes[.font] as? Font) ?? theme.paragraph.font
+                    let baseFont = (baseAttributes[.font] as? Font) ?? theme.typography.paragraph.font
                     attachment.bounds = attachmentBounds(
                         for: image.size,
                         isInline: math.isInline,
@@ -438,7 +438,7 @@ struct AttributedStringBuilder {
                     result.append(NSAttributedString(attachment: attachment))
                 } else {
                     var mathAttrs = baseAttributes
-                    mathAttrs[.font] = theme.codeBlock.font
+                    mathAttrs[.font] = theme.typography.codeBlock.font
                     mathAttrs[.foregroundColor] = Color.systemPurple
                     let prefix = math.isInline ? "" : "\n"
                     let suffix = math.isInline ? "" : "\n"
@@ -625,8 +625,8 @@ struct AttributedStringBuilder {
         constrainedToWidth maxWidth: CGFloat
     ) -> NSAttributedString {
         let result = NSMutableAttributedString()
-        let cellFont = theme.paragraph.font
-        let headerFont = fontWithTrait(theme.paragraph.font, trait: .bold)
+        let cellFont = theme.typography.paragraph.font
+        let headerFont = fontWithTrait(theme.typography.paragraph.font, trait: .bold)
 
         let textTable = NSTextTable()
         textTable.numberOfColumns = columnCount
@@ -669,7 +669,7 @@ struct AttributedStringBuilder {
                 let attrs: [NSAttributedString.Key: Any] = [
                     .font: row.isHead ? headerFont : cellFont,
                     .paragraphStyle: paragraphStyle,
-                    .foregroundColor: theme.textColor.foreground
+                    .foregroundColor: theme.colors.textColor.foreground
                 ]
 
                 let cellText = cells[columnIndex].isEmpty ? " " : cells[columnIndex]
@@ -700,7 +700,7 @@ struct AttributedStringBuilder {
         block.setWidth(8.0, type: .absoluteValueType, for: .padding)
         block.setWidth(0.0, type: .absoluteValueType, for: .margin)
         block.setContentWidth(contentWidth, type: .absoluteValueType)
-        block.setBorderColor(theme.tableColor.foreground)
+        block.setBorderColor(theme.colors.tableColor.foreground)
         block.backgroundColor = backgroundColor
 
         return block
@@ -708,7 +708,7 @@ struct AttributedStringBuilder {
 
     private func tableRowBackgroundColor(isHeader: Bool, bodyRowIndex: Int) -> Color {
         if isHeader {
-            return theme.tableColor.background
+            return theme.colors.tableColor.background
         }
 
         // GitHub-like zebra striping: apply subtle shading to every other body row.
@@ -716,7 +716,7 @@ struct AttributedStringBuilder {
             return .clear
         }
         
-        let bg = theme.tableColor.background
+        let bg = theme.colors.tableColor.background
         var alpha: CGFloat = 1.0
         bg.usingColorSpace(.deviceRGB)?.getRed(nil, green: nil, blue: nil, alpha: &alpha)
         return bg.withAlphaComponent(alpha * 0.45)
@@ -731,8 +731,8 @@ struct AttributedStringBuilder {
         constrainedToWidth maxWidth: CGFloat
     ) -> NSAttributedString {
         let result = NSMutableAttributedString()
-        let cellFont = theme.paragraph.font
-        let headerFont = fontWithTrait(theme.paragraph.font, trait: .bold)
+        let cellFont = theme.typography.paragraph.font
+        let headerFont = fontWithTrait(theme.typography.paragraph.font, trait: .bold)
 
         // Calculate column widths using tab stops for alignment.
         // Reserve 8pt on each side (16pt total) so table content doesn't hug the edges.
@@ -770,14 +770,14 @@ struct AttributedStringBuilder {
             paragraphStyle.firstLineHeadIndent = horizontalInset
             paragraphStyle.headIndent = horizontalInset
             paragraphStyle.alignment = tableTextAlignment(for: table, column: 0)
-            paragraphStyle.lineHeightMultiple = theme.paragraph.lineHeightMultiple
+            paragraphStyle.lineHeightMultiple = theme.typography.paragraph.lineHeightMultiple
             paragraphStyle.paragraphSpacing = 2
 
             let font = row.isHead ? headerFont : cellFont
             let attrs: [NSAttributedString.Key: Any] = [
                 .font: font,
                 .paragraphStyle: paragraphStyle,
-                .foregroundColor: theme.textColor.foreground
+                .foregroundColor: theme.colors.textColor.foreground
             ]
 
             // Join cells with tabs so they snap to the tab stops
@@ -795,7 +795,7 @@ struct AttributedStringBuilder {
                 let sepAttrs: [NSAttributedString.Key: Any] = [
                     .font: cellFont,
                     .paragraphStyle: separatorStyle,
-                    .foregroundColor: theme.tableColor.foreground
+                    .foregroundColor: theme.colors.tableColor.foreground
                 ]
 
                 let dashes = Array(repeating: String(repeating: "─", count: max(3, Int(columnWidth / 8))), count: columnCount)
@@ -822,7 +822,7 @@ struct AttributedStringBuilder {
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.firstLineHeadIndent = horizontalInset
         paragraphStyle.headIndent = horizontalInset
-        paragraphStyle.lineHeightMultiple = theme.paragraph.lineHeightMultiple
+        paragraphStyle.lineHeightMultiple = theme.typography.paragraph.lineHeightMultiple
         paragraphStyle.paragraphSpacing = 3
         paragraphStyle.lineBreakMode = .byWordWrapping
 
@@ -833,7 +833,7 @@ struct AttributedStringBuilder {
             let attrs: [NSAttributedString.Key: Any] = [
                 .font: row.isHead ? headerFont : cellFont,
                 .paragraphStyle: paragraphStyle,
-                .foregroundColor: theme.textColor.foreground
+                .foregroundColor: theme.colors.textColor.foreground
             ]
 
             result.append(NSAttributedString(string: rowText, attributes: attrs))
@@ -846,7 +846,7 @@ struct AttributedStringBuilder {
                 let separatorAttrs: [NSAttributedString.Key: Any] = [
                     .font: cellFont,
                     .paragraphStyle: paragraphStyle,
-                    .foregroundColor: theme.tableColor.foreground
+                    .foregroundColor: theme.colors.tableColor.foreground
                 ]
                 result.append(NSAttributedString(string: "\n" + separator, attributes: separatorAttrs))
             }

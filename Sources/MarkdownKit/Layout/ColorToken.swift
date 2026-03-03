@@ -26,7 +26,7 @@ extension Color {
 
 /// A token defining the color characteristics for a specific Markdown element.
 /// Fully supports Light/Dark mode transitions on both iOS and macOS natively.
-public struct ColorToken {
+public struct ColorToken: Equatable {
     /// The text foreground color.
     public let foreground: Color
     

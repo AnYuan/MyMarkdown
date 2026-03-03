@@ -13,38 +13,57 @@ import AppKit
 
 /// A centralized configuration defining typography, colors, and layout metrics
 /// that dictate exactly how the raw Markdown AST gets styled and measured.
-public struct Theme {
-    public let header1: TypographyToken
-    public let header2: TypographyToken
-    public let header3: TypographyToken
-    public let paragraph: TypographyToken
-    public let codeBlock: TypographyToken
+public struct Theme: Equatable {
+    public let typography: Typography
+    public let colors: Colors
     
-    public let textColor: ColorToken
-    public let codeColor: ColorToken
-    public let inlineCodeColor: ColorToken
-    public let tableColor: ColorToken
+    public struct Typography: Equatable {
+        public let header1: TypographyToken
+        public let header2: TypographyToken
+        public let header3: TypographyToken
+        public let paragraph: TypographyToken
+        public let codeBlock: TypographyToken
+        
+        public init(
+            header1: TypographyToken,
+            header2: TypographyToken,
+            header3: TypographyToken,
+            paragraph: TypographyToken,
+            codeBlock: TypographyToken
+        ) {
+            self.header1 = header1
+            self.header2 = header2
+            self.header3 = header3
+            self.paragraph = paragraph
+            self.codeBlock = codeBlock
+        }
+    }
+    
+    public struct Colors: Equatable {
+        public let textColor: ColorToken
+        public let codeColor: ColorToken
+        public let inlineCodeColor: ColorToken
+        public let tableColor: ColorToken
+        
+        public init(
+            textColor: ColorToken,
+            codeColor: ColorToken,
+            inlineCodeColor: ColorToken? = nil,
+            tableColor: ColorToken
+        ) {
+            self.textColor = textColor
+            self.codeColor = codeColor
+            self.inlineCodeColor = inlineCodeColor ?? codeColor
+            self.tableColor = tableColor
+        }
+    }
     
     public init(
-        header1: TypographyToken,
-        header2: TypographyToken,
-        header3: TypographyToken,
-        paragraph: TypographyToken,
-        codeBlock: TypographyToken,
-        textColor: ColorToken,
-        codeColor: ColorToken,
-        inlineCodeColor: ColorToken? = nil,
-        tableColor: ColorToken
+        typography: Typography,
+        colors: Colors
     ) {
-        self.header1 = header1
-        self.header2 = header2
-        self.header3 = header3
-        self.paragraph = paragraph
-        self.codeBlock = codeBlock
-        self.textColor = textColor
-        self.codeColor = codeColor
-        self.inlineCodeColor = inlineCodeColor ?? codeColor
-        self.tableColor = tableColor
+        self.typography = typography
+        self.colors = colors
     }
     
     /// The default cross-platform theme for MarkdownKit.
@@ -54,6 +73,14 @@ public struct Theme {
         let h3 = TypographyToken(font: Font.boldSystemFont(ofSize: 20))
         let p = TypographyToken(font: Font.systemFont(ofSize: 16))
         let code = TypographyToken(font: Font.monospacedSystemFont(ofSize: 14, weight: .regular))
+        
+        let typography = Typography(
+            header1: h1,
+            header2: h2,
+            header3: h3,
+            paragraph: p,
+            codeBlock: code
+        )
         
 #if canImport(UIKit)
         let textC = ColorToken(foreground: .label)
@@ -77,15 +104,13 @@ public struct Theme {
 #endif
         
         return Theme(
-            header1: h1,
-            header2: h2,
-            header3: h3,
-            paragraph: p,
-            codeBlock: code,
-            textColor: textC,
-            codeColor: codeC,
-            inlineCodeColor: inlineCodeC,
-            tableColor: tableC
+            typography: typography,
+            colors: Colors(
+                textColor: textC,
+                codeColor: codeC,
+                inlineCodeColor: inlineCodeC,
+                tableColor: tableC
+            )
         )
     }
 }

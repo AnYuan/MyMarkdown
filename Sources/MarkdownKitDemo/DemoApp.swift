@@ -93,16 +93,9 @@ struct ThreePanelView: View {
                     .frame(minWidth: 250)
 
                 // Center: Preview (rendered)
-                GeometryReader { geo in
-                    MarkdownPreviewRep(
-                        markdown: editableMarkdown,
-                        width: geo.size.width,
-                        renderTime: $renderTime,
-                        isRendering: $isRendering
-                    )
-                }
-                .frame(minWidth: 300)
-                .background(Color(NSColor.textBackgroundColor))
+                MarkdownView(text: editableMarkdown)
+                    .frame(minWidth: 300)
+                    .background(Color(NSColor.textBackgroundColor))
 
                 // Right: Editor (editable)
                 EditorPanel(markdown: $editableMarkdown)
@@ -143,86 +136,7 @@ struct EditorPanel: View {
     }
 }
 
-// MARK: - Preview (NSViewRepresentable)
 
-struct MarkdownPreviewRep: NSViewRepresentable {
-    let markdown: String
-    let width: CGFloat
-    @Binding var renderTime: Double
-    @Binding var isRendering: Bool
-
-    func makeNSView(context: Context) -> MarkdownCollectionView {
-        MarkdownCollectionView()
-    }
-
-    func updateNSView(_ nsView: MarkdownCollectionView, context: Context) {
-        guard width > 50 else { return }
-
-        let currentMarkdown = markdown
-        let currentWidth = width
-
-        nsView.onToggleDetails = { [weak nsView, coordinator = context.coordinator] index, renderedDetails in
-            guard let nsView else { return }
-            coordinator.lastKey = ""
-            Task {
-                let parser = MarkdownParser(
-                    plugins: [DetailsExtractionPlugin(), DiagramExtractionPlugin(), MathExtractionPlugin()]
-                )
-                let ast = parser.parse(currentMarkdown)
-                guard ast.children.indices.contains(index),
-                      let details = ast.children[index] as? DetailsNode else {
-                    return
-                }
-
-                var updatedChildren = ast.children
-                updatedChildren[index] = DetailsNode(
-                    range: details.range,
-                    isOpen: !renderedDetails.isOpen,
-                    summary: details.summary,
-                    children: details.children
-                )
-
-                let toggledDocument = DocumentNode(range: ast.range, children: updatedChildren)
-                let solver = LayoutSolver(diagramRegistry: DemoDiagramAdapters.makeRegistry())
-                let result = await solver.solve(node: toggledDocument, constrainedToWidth: currentWidth)
-
-                await MainActor.run {
-                    nsView.layouts = result.children
-                }
-            }
-        }
-
-        // Debounce: skip if same content and width
-        let key = "\(currentMarkdown.hashValue)_\(Int(currentWidth))"
-        if context.coordinator.lastKey == key { return }
-        context.coordinator.lastKey = key
-
-        Task {
-            await MainActor.run { isRendering = true }
-
-            let start = CFAbsoluteTimeGetCurrent()
-            let parser = MarkdownParser(
-                plugins: [DetailsExtractionPlugin(), DiagramExtractionPlugin(), MathExtractionPlugin()]
-            )
-            let ast = parser.parse(currentMarkdown)
-            let solver = LayoutSolver(diagramRegistry: DemoDiagramAdapters.makeRegistry())
-            let result = await solver.solve(node: ast, constrainedToWidth: currentWidth)
-            let end = CFAbsoluteTimeGetCurrent()
-
-            await MainActor.run {
-                renderTime = (end - start) * 1000
-                isRendering = false
-                nsView.layouts = result.children
-            }
-        }
-    }
-
-    func makeCoordinator() -> Coordinator { Coordinator() }
-
-    class Coordinator {
-        var lastKey: String = ""
-    }
-}
 
 // MARK: - Syntax Pages
 
