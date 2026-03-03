@@ -62,4 +62,28 @@ final class MarkdownKitTests: XCTestCase {
         XCTAssertEqual(image?.altText, "My Image")
         XCTAssertEqual(image?.title, "Optional Title")
     }
+
+    func testEngineDefaultPluginsIncludeCorePipeline() {
+        let plugins = MarkdownKitEngine.defaultPlugins()
+        XCTAssertEqual(plugins.count, 3)
+        XCTAssertTrue(plugins.contains { $0 is DetailsExtractionPlugin })
+        XCTAssertTrue(plugins.contains { $0 is DiagramExtractionPlugin })
+        XCTAssertTrue(plugins.contains { $0 is MathExtractionPlugin })
+    }
+
+    func testEngineCanIncludeGitHubAutolinkPlugin() {
+        let parser = MarkdownKitEngine.makeParser(includeGitHubAutolinks: true)
+        XCTAssertTrue(parser.plugins.contains { $0 is GitHubAutolinkPlugin })
+    }
+
+    func testEngineConvenienceLayoutReturnsChildren() async {
+        let layout = await MarkdownKitEngine.layout(
+            markdown: "# Title\n\nParagraph text",
+            constrainedToWidth: 400
+        )
+
+        XCTAssertEqual(layout.children.count, 2)
+        XCTAssertTrue(layout.children[0].node is HeaderNode)
+        XCTAssertTrue(layout.children[1].node is ParagraphNode)
+    }
 }

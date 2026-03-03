@@ -30,17 +30,23 @@ swift run MarkdownKitDemo
 ```swift
 import MarkdownKit
 
-let parser = MarkdownParser(
-    plugins: [
-        DetailsExtractionPlugin(),
-        DiagramExtractionPlugin(),
-        MathExtractionPlugin()
-    ]
-)
+let parser = MarkdownKitEngine.makeParser()
+let solver = MarkdownKitEngine.makeLayoutSolver()
 
 let document = parser.parse("# Hello MarkdownKit")
-let solver = LayoutSolver()
 let layout = await solver.solve(node: document, constrainedToWidth: 800)
+print(layout.children.count)
+```
+
+## One-Call Convenience
+
+```swift
+import MarkdownKit
+
+let layout = await MarkdownKitEngine.layout(
+    markdown: "# Hello\n\nThis is **MarkdownKit**.",
+    constrainedToWidth: 800
+)
 print(layout.children.count)
 ```
 
