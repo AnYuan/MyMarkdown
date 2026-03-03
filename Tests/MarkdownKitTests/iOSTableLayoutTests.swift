@@ -180,5 +180,29 @@ final class iOSTableLayoutTests: XCTestCase {
             }
         }
     }
+
+    func testUIKitTableNarrowWidthUsesReadableFallbackWithoutTabStops() async throws {
+        let markdown = """
+        | Feature | Status | Priority | Owner |
+        |---------|--------|----------|-------|
+        | Parsing | Done   | High     | Core  |
+        """
+
+        let layout = await TestHelper.solveLayout(markdown, width: 100)
+        let tableLayout = layout.children[0]
+
+        guard let attr = tableLayout.attributedString else {
+            XCTFail("Table should produce attributed output")
+            return
+        }
+
+        XCTAssertFalse(attr.string.contains("\t"),
+                       "Narrow-width fallback should avoid tab-delimited table rows")
+
+        if let style = attr.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle {
+            XCTAssertTrue(style.tabStops.isEmpty,
+                          "Narrow-width fallback should not rely on tab stops")
+        }
+    }
 }
 #endif

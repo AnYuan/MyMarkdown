@@ -808,7 +808,22 @@ public final class LayoutSolver {
         // Reserve 8pt on each side (16pt total) so table content doesn't hug the edges.
         let horizontalInset: CGFloat = 8
         let availableWidth = max(160, maxWidth - horizontalInset * 2)
-        let columnWidth = max(72, floor(availableWidth / CGFloat(columnCount)))
+        let rawColumnWidth = floor(availableWidth / CGFloat(columnCount))
+
+        // If a column gets too narrow, tab-stop rendering becomes unreadable.
+        // Fall back to a plain wrapped row format to preserve legibility.
+        let minimumReadableColumnWidth: CGFloat = 36
+        if rawColumnWidth < minimumReadableColumnWidth {
+            return buildTableAttributedString_UIKitNarrowFallback(
+                allRows: allRows,
+                columnCount: columnCount,
+                horizontalInset: horizontalInset,
+                headerFont: headerFont,
+                cellFont: cellFont
+            )
+        }
+
+        let columnWidth = rawColumnWidth
 
         for (rowIndex, row) in allRows.enumerated() {
             let cells = normalizedCells(for: row.cells, columnCount: columnCount)
@@ -855,6 +870,55 @@ public final class LayoutSolver {
 
                 let dashes = Array(repeating: String(repeating: "─", count: max(3, Int(columnWidth / 8))), count: columnCount)
                 result.append(NSAttributedString(string: "\n" + dashes.joined(separator: "\t"), attributes: sepAttrs))
+            }
+
+            if rowIndex < allRows.count - 1 {
+                result.append(NSAttributedString(string: "\n", attributes: attrs))
+            }
+        }
+
+        return result
+    }
+
+    private func buildTableAttributedString_UIKitNarrowFallback(
+        allRows: [(cells: [String], isHead: Bool)],
+        columnCount: Int,
+        horizontalInset: CGFloat,
+        headerFont: Font,
+        cellFont: Font
+    ) -> NSAttributedString {
+        let result = NSMutableAttributedString()
+
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.firstLineHeadIndent = horizontalInset
+        paragraphStyle.headIndent = horizontalInset
+        paragraphStyle.lineHeightMultiple = theme.paragraph.lineHeightMultiple
+        paragraphStyle.paragraphSpacing = 3
+        paragraphStyle.lineBreakMode = .byWordWrapping
+
+        for (rowIndex, row) in allRows.enumerated() {
+            let cells = normalizedCells(for: row.cells, columnCount: columnCount)
+            let rowText = cells.map { $0.isEmpty ? " " : $0 }.joined(separator: "  |  ")
+
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: row.isHead ? headerFont : cellFont,
+                .paragraphStyle: paragraphStyle,
+                .foregroundColor: theme.textColor.foreground
+            ]
+
+            result.append(NSAttributedString(string: rowText, attributes: attrs))
+
+            if row.isHead {
+                let separator = Array(
+                    repeating: String(repeating: "─", count: 5),
+                    count: columnCount
+                ).joined(separator: "  |  ")
+                let separatorAttrs: [NSAttributedString.Key: Any] = [
+                    .font: cellFont,
+                    .paragraphStyle: paragraphStyle,
+                    .foregroundColor: theme.tableColor.foreground
+                ]
+                result.append(NSAttributedString(string: "\n" + separator, attributes: separatorAttrs))
             }
 
             if rowIndex < allRows.count - 1 {
