@@ -75,6 +75,41 @@ enum MermaidHTMLBuilder {
         </html>
         """
     }
+
+    static func makeHTML(source: String, scriptURLString: String) -> String {
+        let sourceBase64 = Data(source.utf8).base64EncodedString()
+        return """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+            <style>
+                html, body { margin: 0; padding: 0; background-color: transparent; overflow: hidden; }
+                #mermaid-root { background-color: transparent; display: inline-block; }
+            </style>
+            <script src="\(scriptURLString)"></script>
+        </head>
+        <body>
+            <div id="mermaid-root"></div>
+            <script>
+                (function() {
+                    const root = document.getElementById('mermaid-root');
+                    if (!root || !window.mermaid) { return; }
+                    const source = window.atob('\(sourceBase64)');
+                    root.textContent = source;
+                    window.mermaid.initialize({
+                        startOnLoad: false,
+                        theme: 'default',
+                        securityLevel: 'strict'
+                    });
+                    window.mermaid.run({ nodes: [root] });
+                })();
+            </script>
+        </body>
+        </html>
+        """
+    }
 }
 
 @MainActor
