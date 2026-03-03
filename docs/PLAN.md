@@ -6,6 +6,8 @@ This document breaks down the execution strategy to fulfill the requirements def
 ## Related Docs
 - Technical debt roadmap: `docs/TechnicalDebtRoadmap.md`
 - Rendering sequence diagram: `docs/RenderingPipelineSequence.md`
+- Codebase knowledge snapshot: `docs/CodebaseKnowledge.md`
+- Next atomic checklist: `docs/ImplementationChecklist.md`
 
 ## Current Execution Plan: Automation-First Verification Program
 This execution wave prioritizes automated verification before adding more feature surface. The goal is to remove manual UI checking as the default validation path.
