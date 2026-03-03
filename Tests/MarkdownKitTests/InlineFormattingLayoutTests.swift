@@ -374,6 +374,27 @@ final class InlineFormattingLayoutTests: XCTestCase {
             "Math layout should produce either equation text or image attachment, got: \(text)")
     }
 
+    func testMathBinomFallbackProducesOutput() async throws {
+        // `\\binom` may not be supported in every runtime; rendering must still be stable.
+        let markdown = "$\\\\binom{n}{k}$"
+        let doc = TestHelper.parse(markdown, plugins: [MathExtractionPlugin()])
+        let solver = LayoutSolver()
+        let layout = await solver.solve(node: doc, constrainedToWidth: 400)
+
+        guard let attrStr = layout.children.first?.attributedString else {
+            XCTFail("Expected attributed string for binom math layout")
+            return
+        }
+
+        let text = attrStr.string
+        let hasEquationFallback = text.contains("\\binom{n}{k}")
+        let hasAttachment = text.contains("\u{FFFC}")
+        XCTAssertTrue(
+            hasEquationFallback || hasAttachment,
+            "Binom math should produce either fallback text or image attachment, got: \(text)"
+        )
+    }
+
     private func makeRelativeFixtureImagePath() throws -> (relativePath: String, absoluteURL: URL) {
         let base64PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO8B9n0AAAAASUVORK5CYII="
         guard let data = Data(base64Encoded: base64PNG) else {

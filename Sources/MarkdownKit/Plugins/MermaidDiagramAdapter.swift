@@ -217,8 +217,8 @@ private class MermaidSnapshotter: NSObject, WKNavigationDelegate {
         webView.evaluateJavaScript(renderJS) { [weak self, weak webView] result, error in
             guard let self, let webView else { return }
             
-            if let error = error {
-                print("Mermaid inline JS evaluation error: \\(error)")
+            if let error {
+                print("Mermaid inline JS evaluation error: \(error)")
                 self.completeCurrentRender(image: nil)
                 return
             }
@@ -229,7 +229,7 @@ private class MermaidSnapshotter: NSObject, WKNavigationDelegate {
                     self.snapshotRenderedSVG(from: webView)
                 }
             } else {
-                print("Mermaid inline JS failed: \\(String(describing: result))")
+                print("Mermaid inline JS failed: \(String(describing: result))")
                 self.completeCurrentRender(image: nil)
             }
         }
@@ -241,8 +241,8 @@ private class MermaidSnapshotter: NSObject, WKNavigationDelegate {
            let scriptSource = try? String(contentsOf: scriptURL, encoding: .utf8) {
             webView.evaluateJavaScript(scriptSource) { [weak self] _, error in
                 guard let self else { return }
-                if let error = error {
-                    print("Failed to initialize mermaid JS bundle: \\(error)")
+                if let error {
+                    print("Failed to initialize mermaid JS bundle: \(error)")
                 } else {
                     self.isWebViewReady = true
                     // Process any queued items

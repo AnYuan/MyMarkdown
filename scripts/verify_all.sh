@@ -13,9 +13,10 @@ usage() {
   cat <<'EOF'
 Usage: bash scripts/verify_all.sh [--with-benchmarks|-b] [--full|-f]
 
-Runs the deterministic verification suites used for daily regression checks.
-Use --with-benchmarks to include heavier benchmark suites.
-Use --full to run one-shot full validation via `swift test`.
+Runs layered verification.
+- default: fast regression suites (`scripts/verify_fast.sh`)
+- --with-benchmarks: add heavy benchmark suites (`scripts/verify_benchmarks.sh`)
+- --full: one-shot full validation via `swift test`
 EOF
 }
 
@@ -39,8 +40,6 @@ for arg in "$@"; do
   esac
 done
 
-declare -a FAILURES=()
-
 run_full_suite() {
   echo
   echo "============================================================"
@@ -62,47 +61,22 @@ if [[ "$FULL_SUITE" -eq 1 ]]; then
   run_full_suite
 fi
 
-run_suite() {
-  local name="$1"
-  local filter="$2"
-
-  echo
-  echo "============================================================"
-  echo "[START] $name"
-  echo "Command: swift test --filter \"$filter\""
-  echo "============================================================"
-
-  if swift test --filter "$filter"; then
-    echo "[PASS] $name"
-  else
-    echo "[FAIL] $name"
-    FAILURES+=("$name")
-  fi
-}
-
-run_suite "Syntax Matrix" "SyntaxMatrixTests"
-run_suite "Critical Plugins" "DetailsExtractionPluginTests|DiagramExtractionPluginTests|MathExtractionPluginTests|GitHubAutolinkPluginTests"
-run_suite "Layout Regressions" "LayoutSolverExtendedTests|InlineFormattingLayoutTests|CrossPlatformLayoutTests|iOSTableLayoutTests"
-run_suite "Security Hardening" "URLSanitizerTests|DepthLimitTests|FuzzTests"
-run_suite "CommonMark Semantics" "CommonMarkSpecTests|ParserInlineFormattingTests|ParserLinkListTableTests"
+echo
+echo "Running fast verification suites..."
+if ! bash scripts/verify_fast.sh; then
+  exit 1
+fi
 
 if [[ "$WITH_BENCHMARKS" -eq 1 ]]; then
-  run_suite "Benchmark Full Report" "MarkdownKitBenchmarkTests/testBenchmarkFullReport"
-  run_suite "Benchmark Node Deep Report" "BenchmarkNodeTypeTests/testDeepBenchmarkFullReport"
-  run_suite "Benchmark Syntax Tiered" "BenchmarkNodeTypeTests/testPerSyntaxTieredBenchmark"
-  run_suite "Benchmark Cache" "BenchmarkCacheTests"
+  echo
+  echo "Running benchmark verification suites..."
+  if ! bash scripts/verify_benchmarks.sh; then
+    exit 1
+  fi
 else
   echo
   echo "[SKIP] Benchmark suites (pass --with-benchmarks to include them)."
 fi
 
 echo
-if (( ${#FAILURES[@]} > 0 )); then
-  echo "Verification failed. Failed suites:"
-  for suite in "${FAILURES[@]}"; do
-    echo " - $suite"
-  done
-  exit 1
-fi
-
-echo "Verification passed: all suites completed successfully."
+echo "Verification passed: selected suites completed successfully."

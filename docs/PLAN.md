@@ -12,14 +12,28 @@ This document breaks down the execution strategy to fulfill the requirements def
 ## Current Execution Plan: Automation-First Verification Program
 This execution wave prioritizes automated verification before adding more feature surface. The goal is to remove manual UI checking as the default validation path.
 
-### Verification Entry Point (2026-03-03)
-Primary daily gate now has a single command wrapper:
+### Verification Entry Point (2026-03-04)
+Primary daily gate is now explicitly split:
+
+Fast regression gate:
+
+```bash
+bash scripts/verify_fast.sh
+```
+
+Heavy benchmark gate:
+
+```bash
+bash scripts/verify_benchmarks.sh
+```
+
+Combined wrapper:
 
 ```bash
 bash scripts/verify_all.sh
 ```
 
-It runs syntax matrix, plugin correctness, layout regressions, security suites, and CommonMark semantic subset checks. Optional benchmark suites can be included with `--with-benchmarks`.
+The combined wrapper always runs fast suites first, then optionally runs benchmark suites with `--with-benchmarks`.
 
 For release-level validation, run:
 

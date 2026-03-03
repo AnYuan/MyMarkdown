@@ -52,6 +52,20 @@ print(layout.children.count)
 
 ## Automated Verification
 
+Fast regression gate (recommended for daily iteration):
+
+```bash
+bash scripts/verify_fast.sh
+```
+
+Benchmark-only gate (heavier):
+
+```bash
+bash scripts/verify_benchmarks.sh
+```
+
+Combined wrapper (fast + optional heavy):
+
 ```bash
 bash scripts/verify_all.sh
 ```
