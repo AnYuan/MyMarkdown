@@ -35,6 +35,21 @@ public final class LayoutSolver {
         self.diagramRegistry = diagramRegistry
     }
     
+    /// Synchronous version of `solve` for use in contexts that cannot await (e.g. SwiftUI @ViewBuilder).
+    ///
+    /// Runs the async solve on a background thread and blocks the caller until complete.
+    /// Prefer the async version when possible.
+    public func solveSync(node: MarkdownNode, constrainedToWidth maxWidth: CGFloat) -> LayoutResult {
+        let semaphore = DispatchSemaphore(value: 0)
+        var result: LayoutResult!
+        Task.detached { [self] in
+            result = await self.solve(node: node, constrainedToWidth: maxWidth)
+            semaphore.signal()
+        }
+        semaphore.wait()
+        return result
+    }
+
     /// Recursively calculates the layout for a node and all its children.
     ///
     /// - Parameters:
