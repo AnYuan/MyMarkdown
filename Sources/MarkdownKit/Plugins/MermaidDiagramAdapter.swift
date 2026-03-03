@@ -35,20 +35,86 @@ public struct MermaidDiagramAdapter: DiagramRenderingAdapter {
     }
 }
 
+enum MermaidResourceLocator {
+    static let bundledScriptName = "mermaid.min"
+    static let bundledScriptExtension = "js"
+    static let fallbackRemoteURLString = "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"
+
+    static func bundledScriptURL() -> URL? {
+        Bundle.module.url(
+            forResource: bundledScriptName,
+            withExtension: bundledScriptExtension
+        )
+    }
+
+    static func preferredScriptURLString() -> String {
+        bundledScriptURL()?.absoluteString ?? fallbackRemoteURLString
+    }
+
+    static func preferredBaseURL() -> URL? {
+        bundledScriptURL()?.deletingLastPathComponent()
+    }
+}
+
+enum MermaidHTMLBuilder {
+    static func makeHTML(source: String, scriptURLString: String) -> String {
+        let sourceBase64 = Data(source.utf8).base64EncodedString()
+        return """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+            <style>
+                html, body { margin: 0; padding: 0; background-color: transparent; overflow: hidden; }
+                #mermaid-root { background-color: transparent; display: inline-block; }
+            </style>
+            <script src="\(scriptURLString)"></script>
+            <script>
+                (function() {
+                    if (!window.mermaid) { return; }
+                    const root = document.getElementById('mermaid-root');
+                    if (!root) { return; }
+                    const source = window.atob('\(sourceBase64)');
+                    root.textContent = source;
+                    window.mermaid.initialize({
+                        startOnLoad: false,
+                        theme: 'default',
+                        securityLevel: 'strict'
+                    });
+                    window.mermaid.run({ nodes: [root] });
+                })();
+            </script>
+        </head>
+        <body>
+            <div id="mermaid-root"></div>
+        </body>
+        </html>
+        """
+    }
+}
+
 @MainActor
 private class MermaidSnapshotter: NSObject, WKNavigationDelegate {
     
     static let shared = MermaidSnapshotter()
     
-    private var webView: WKWebView!
+    private var webView: WKWebView
     private var currentContinuation: CheckedContinuation<NativeImage?, Never>?
+    private var activeRenderToken: UUID?
+    private var timeoutWorkItem: DispatchWorkItem?
     private var isRendering = false
     private var queue: [(source: String, continuation: CheckedContinuation<NativeImage?, Never>)] = []
+    private let renderTimeout: TimeInterval = 4.0
+    private let snapshotDimensionLimit: CGFloat = 2048
     
     override init() {
-        super.init()
         let configuration = WKWebViewConfiguration()
-        webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 800, height: 600), configuration: configuration)
+        webView = WKWebView(
+            frame: CGRect(x: 0, y: 0, width: 640, height: 480),
+            configuration: configuration
+        )
+        super.init()
         webView.navigationDelegate = self
         
         #if canImport(UIKit)
@@ -72,59 +138,111 @@ private class MermaidSnapshotter: NSObject, WKNavigationDelegate {
         isRendering = true
         let (source, continuation) = queue.removeFirst()
         currentContinuation = continuation
-        
-        let escapedSource = source
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "`", with: "\\`")
-            .replacingOccurrences(of: "$", with: "\\$")
-            
-        let html = """
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-            <style>
-                body { margin: 0; padding: 0; background-color: transparent; }
-                .mermaid { background-color: transparent; }
-            </style>
-            <script type="module">
-                import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
-                mermaid.initialize({ startOnLoad: true, theme: 'default', background: 'transparent' });
-            </script>
-        </head>
-        <body>
-            <div class="mermaid">
-                \(escapedSource)
-            </div>
-        </body>
-        </html>
-        """
-        
-        webView.loadHTMLString(html, baseURL: nil)
+
+        let renderToken = UUID()
+        activeRenderToken = renderToken
+
+        let timeout = DispatchWorkItem { [weak self] in
+            self?.completeCurrentRender(image: nil, token: renderToken)
+        }
+        timeoutWorkItem = timeout
+        DispatchQueue.main.asyncAfter(deadline: .now() + renderTimeout, execute: timeout)
+
+        let html = MermaidHTMLBuilder.makeHTML(
+            source: source,
+            scriptURLString: MermaidResourceLocator.preferredScriptURLString()
+        )
+        webView.loadHTMLString(html, baseURL: MermaidResourceLocator.preferredBaseURL())
     }
     
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        // Wait briefly for Mermaid JS to execute and render
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+        // Wait briefly for Mermaid JS execution and SVG layout.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self, weak webView] in
+            guard let self, let webView else { return }
+            self.snapshotRenderedSVG(from: webView)
+        }
+    }
+
+    func webView(
+        _ webView: WKWebView,
+        didFail navigation: WKNavigation!,
+        withError error: Error
+    ) {
+        completeCurrentRender(image: nil)
+    }
+
+    func webView(
+        _ webView: WKWebView,
+        didFailProvisionalNavigation navigation: WKNavigation!,
+        withError error: Error
+    ) {
+        completeCurrentRender(image: nil)
+    }
+
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        completeCurrentRender(image: nil)
+    }
+
+    private func snapshotRenderedSVG(from webView: WKWebView) {
+        let sizeJS = """
+        (function() {
+            const svg = document.querySelector('#mermaid-root svg');
+            if (!svg) { return null; }
+            const rect = svg.getBoundingClientRect();
+            return {
+                width: Math.max(1, Math.ceil(rect.width)),
+                height: Math.max(1, Math.ceil(rect.height))
+            };
+        })();
+        """
+
+        webView.evaluateJavaScript(sizeJS) { [weak self, weak webView] result, error in
+            guard let self, let webView else { return }
+
+            guard error == nil,
+                  let dimensions = result as? [String: Any],
+                  let width = dimensions["width"] as? Double,
+                  let height = dimensions["height"] as? Double else {
+                self.completeCurrentRender(image: nil)
+                return
+            }
+
+            let snapshotSize = self.clampedSnapshotSize(width: width, height: height)
+            webView.frame = CGRect(origin: .zero, size: snapshotSize)
+
             let config = WKSnapshotConfiguration()
-            config.rect = CGRect(x: 0, y: 0, width: 800, height: 600) // Simplification for demo
-            
+            config.rect = CGRect(origin: .zero, size: snapshotSize)
             webView.takeSnapshot(with: config) { [weak self] image, error in
-                guard let self = self else { return }
-                
-                let continuation = self.currentContinuation
-                self.currentContinuation = nil
-                self.isRendering = false
-                
-                if let image = image, error == nil {
-                    continuation?.resume(returning: image)
-                } else {
-                    continuation?.resume(returning: nil)
+                guard let self else { return }
+                guard error == nil else {
+                    self.completeCurrentRender(image: nil)
+                    return
                 }
-                
-                self.processNext()
+                self.completeCurrentRender(image: image)
             }
         }
+    }
+
+    private func clampedSnapshotSize(width: Double, height: Double) -> CGSize {
+        let clampedWidth = min(max(width, 1), snapshotDimensionLimit)
+        let clampedHeight = min(max(height, 1), snapshotDimensionLimit)
+        return CGSize(width: clampedWidth, height: clampedHeight)
+    }
+
+    private func completeCurrentRender(image: NativeImage?, token: UUID? = nil) {
+        if let token, token != activeRenderToken {
+            return
+        }
+
+        timeoutWorkItem?.cancel()
+        timeoutWorkItem = nil
+
+        let continuation = currentContinuation
+        currentContinuation = nil
+        activeRenderToken = nil
+        isRendering = false
+
+        continuation?.resume(returning: image)
+        processNext()
     }
 }

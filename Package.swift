@@ -35,6 +35,9 @@ let package = Package(
                 .product(name: "Markdown", package: "swift-markdown"),
                 .product(name: "Splash", package: "Splash"),
                 .product(name: "MathJaxSwift", package: "MathJaxSwift")
+            ],
+            resources: [
+                .copy("Resources/mermaid.min.js")
             ]
         ),
         .executableTarget(
