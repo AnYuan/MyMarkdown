@@ -376,7 +376,7 @@ public final class LayoutSolver {
 
             let labelAttrs: [NSAttributedString.Key: Any] = [
                 .font: Font.monospacedSystemFont(ofSize: 11, weight: .semibold),
-                .foregroundColor: Color.secondaryLabelColor,
+                .foregroundColor: Color.platformSecondaryLabel,
                 .paragraphStyle: labelStyle
             ]
             result.append(NSAttributedString(string: label + "\n", attributes: labelAttrs))
@@ -508,7 +508,7 @@ public final class LayoutSolver {
                     result.append(attachment)
                 } else {
                     var imgAttrs = baseAttributes
-                    imgAttrs[.foregroundColor] = Color.secondaryLabelColor
+                    imgAttrs[.foregroundColor] = Color.platformSecondaryLabel
                     let altText = image.altText ?? image.source ?? "image"
                     result.append(NSAttributedString(string: "[\(altText)]", attributes: imgAttrs))
                 }
@@ -670,11 +670,35 @@ public final class LayoutSolver {
         from table: TableNode,
         constrainedToWidth maxWidth: CGFloat
     ) -> NSAttributedString {
-        let result = NSMutableAttributedString()
         let allRows = normalizedTableRows(from: table)
         let columnCount = allRows.map(\.cells.count).max() ?? 0
-        guard columnCount > 0 else { return result }
+        guard columnCount > 0 else { return NSAttributedString() }
 
+        #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        return buildTableAttributedString_AppKit(
+            allRows: allRows,
+            columnCount: columnCount,
+            table: table,
+            constrainedToWidth: maxWidth
+        )
+        #else
+        return buildTableAttributedString_UIKit(
+            allRows: allRows,
+            columnCount: columnCount,
+            table: table,
+            constrainedToWidth: maxWidth
+        )
+        #endif
+    }
+
+    #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+    private func buildTableAttributedString_AppKit(
+        allRows: [(cells: [String], isHead: Bool)],
+        columnCount: Int,
+        table: TableNode,
+        constrainedToWidth maxWidth: CGFloat
+    ) -> NSAttributedString {
+        let result = NSMutableAttributedString()
         let cellFont = theme.paragraph.font
         let headerFont = fontWithTrait(theme.paragraph.font, trait: .bold)
 
@@ -684,10 +708,9 @@ public final class LayoutSolver {
         textTable.collapsesBorders = true
         textTable.hidesEmptyCells = false
 
-        // Reserve some breathing room so columns do not collapse to character-by-character wrapping.
         let availableTableWidth = max(160, maxWidth - 16)
         let perColumnWidth = max(72, floor(availableTableWidth / CGFloat(columnCount)))
-        let horizontalPadding = 16.0 // 8 left + 8 right, set below in `configuredTableBlock`
+        let horizontalPadding = 16.0
         let borderAllowance = 2.0
         let contentWidth = max(48, perColumnWidth - horizontalPadding - borderAllowance)
 
@@ -768,6 +791,73 @@ public final class LayoutSolver {
         }
         return theme.tableColor.background.withAlphaComponent(0.45)
     }
+    #endif
+
+    #if canImport(UIKit)
+    private func buildTableAttributedString_UIKit(
+        allRows: [(cells: [String], isHead: Bool)],
+        columnCount: Int,
+        table: TableNode,
+        constrainedToWidth maxWidth: CGFloat
+    ) -> NSAttributedString {
+        let result = NSMutableAttributedString()
+        let cellFont = theme.paragraph.font
+        let headerFont = fontWithTrait(theme.paragraph.font, trait: .bold)
+
+        // Calculate column widths using tab stops for alignment.
+        let availableWidth = max(160, maxWidth - 16)
+        let columnWidth = max(72, floor(availableWidth / CGFloat(columnCount)))
+
+        for (rowIndex, row) in allRows.enumerated() {
+            let cells = normalizedCells(for: row.cells, columnCount: columnCount)
+
+            // Build tab stops for each column
+            var tabStops: [NSTextTab] = []
+            for col in 0..<columnCount {
+                let alignment = tableTextAlignment(for: table, column: col)
+                tabStops.append(NSTextTab(textAlignment: alignment, location: columnWidth * CGFloat(col)))
+            }
+
+            let paragraphStyle = NSMutableParagraphStyle()
+            paragraphStyle.tabStops = tabStops
+            paragraphStyle.lineHeightMultiple = theme.paragraph.lineHeightMultiple
+            paragraphStyle.paragraphSpacing = 2
+
+            let font = row.isHead ? headerFont : cellFont
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: font,
+                .paragraphStyle: paragraphStyle,
+                .foregroundColor: theme.textColor.foreground
+            ]
+
+            // Join cells with tabs so they snap to the tab stops
+            let rowText = cells.map { $0.isEmpty ? " " : $0 }.joined(separator: "\t")
+            result.append(NSAttributedString(string: rowText, attributes: attrs))
+
+            // Add separator line after header row
+            if row.isHead {
+                let separatorStyle = NSMutableParagraphStyle()
+                separatorStyle.tabStops = tabStops
+                separatorStyle.paragraphSpacing = 2
+
+                let sepAttrs: [NSAttributedString.Key: Any] = [
+                    .font: cellFont,
+                    .paragraphStyle: separatorStyle,
+                    .foregroundColor: theme.tableColor.foreground
+                ]
+
+                let dashes = Array(repeating: String(repeating: "─", count: max(3, Int(columnWidth / 8))), count: columnCount)
+                result.append(NSAttributedString(string: "\n" + dashes.joined(separator: "\t"), attributes: sepAttrs))
+            }
+
+            if rowIndex < allRows.count - 1 {
+                result.append(NSAttributedString(string: "\n", attributes: attrs))
+            }
+        }
+
+        return result
+    }
+    #endif
 
     private func normalizedTableRows(from table: TableNode) -> [(cells: [String], isHead: Bool)] {
         var rows: [(cells: [String], isHead: Bool)] = []

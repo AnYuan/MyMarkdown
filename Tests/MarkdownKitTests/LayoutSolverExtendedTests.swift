@@ -83,6 +83,7 @@ final class LayoutSolverExtendedTests: XCTestCase {
         XCTAssertFalse(text.contains("|---"), "Rendered table should not expose raw markdown separator syntax")
     }
 
+    #if canImport(AppKit) && !targetEnvironment(macCatalyst)
     func testTableLayoutUsesNativeTextTableBlocks() async throws {
         let markdown = """
         | Left | Center | Right |
@@ -210,6 +211,7 @@ final class LayoutSolverExtendedTests: XCTestCase {
         XCTAssertFalse(firstBodyHasBackground, "First body row should remain unshaded")
         XCTAssertTrue(secondBodyHasBackground, "Second body row should use zebra striping")
     }
+    #endif
 
     func testClosedDetailsLayoutShowsOnlySummaryRow() async throws {
         let markdown = """

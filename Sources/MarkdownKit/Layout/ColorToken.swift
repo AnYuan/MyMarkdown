@@ -13,6 +13,17 @@ import AppKit
 public typealias Color = NSColor
 #endif
 
+extension Color {
+    /// Cross-platform secondary label color.
+    static var platformSecondaryLabel: Color {
+        #if canImport(UIKit)
+        return .secondaryLabel
+        #elseif canImport(AppKit)
+        return .secondaryLabelColor
+        #endif
+    }
+}
+
 /// A token defining the color characteristics for a specific Markdown element.
 /// Fully supports Light/Dark mode transitions on both iOS and macOS natively.
 public struct ColorToken {
