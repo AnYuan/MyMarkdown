@@ -17,6 +17,18 @@ import AppKit
 public typealias NativeImage = NSImage
 #endif
 
+actor MathWarningSuppressor {
+    private var seenMessages: Set<String> = []
+
+    func shouldLog(_ message: String) -> Bool {
+        let normalized = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return false }
+        if seenMessages.contains(normalized) { return false }
+        seenMessages.insert(normalized)
+        return true
+    }
+}
+
 /// Converts LaTeX to SVG with `MathJaxSwift` (JavaScriptCore) and rasterizes the SVG
 /// with a shared hidden `WKWebView` for use in `NSTextAttachment`.
 public final class MathRenderer: NSObject, WKNavigationDelegate {
@@ -54,6 +66,7 @@ public final class MathRenderer: NSObject, WKNavigationDelegate {
     }
 
     private let engine = Engine()
+    private let warningSuppressor = MathWarningSuppressor()
 
     private var webView: WKWebView?
     private var isWebViewReady = false
@@ -86,7 +99,10 @@ public final class MathRenderer: NSObject, WKNavigationDelegate {
             do {
                 svg = try await engine.tex2svg(latex, display: display)
             } catch {
-                print("MathJaxSwift conversion failed: \(error)")
+                let errorMessage = String(describing: error)
+                if await warningSuppressor.shouldLog(errorMessage) {
+                    print("MathJaxSwift conversion failed: \(errorMessage)")
+                }
                 completion(nil)
                 return
             }

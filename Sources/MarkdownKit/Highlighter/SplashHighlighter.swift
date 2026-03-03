@@ -19,6 +19,7 @@ public struct SplashHighlighter {
     
     private let highlighter: SyntaxHighlighter<AttributedStringOutputFormat>
     private let theme: Theme
+    private let plainCodeAttributes: [NSAttributedString.Key: Any]
     
     public init(theme: Theme = .default) {
         self.theme = theme
@@ -45,35 +46,42 @@ public struct SplashHighlighter {
         
         let format = AttributedStringOutputFormat(theme: splashTheme)
         self.highlighter = SyntaxHighlighter(format: format)
+        self.plainCodeAttributes = [
+            .font: theme.typography.codeBlock.font,
+            .foregroundColor: theme.colors.textColor.foreground
+        ]
     }
     
     /// Returns a syntax-highlighted attributed string for the given code.
     /// - Parameters:
     ///   - code: The raw string of code.
-    ///   - language: Optional language identifier (e.g. "swift"). Splash defaults to Swift if unknown, which is usually fine for general C-family syntax.
+    ///   - language: Optional language identifier (e.g. "swift").
+    ///     Non-Swift languages fall back to plain styling to avoid misleading tokenization.
     public func highlight(_ code: String, language: String? = nil) -> NSAttributedString {
         let isSwiftFamily = isSwiftLikeLanguage(language)
         
         if isSwiftFamily {
             return highlighter.highlight(code)
-        } else {
-            // Passthrough for non-Swift languages (python, js, ruby, etc)
-            // to prevent Splash from confusing syntax and generating chaotic colors.
-            let attributes: [NSAttributedString.Key: Any] = [
-                .font: theme.typography.codeBlock.font,
-                .foregroundColor: theme.colors.textColor.foreground
-            ]
-            return NSAttributedString(string: code, attributes: attributes)
         }
+
+        return NSAttributedString(string: code, attributes: plainCodeAttributes)
     }
     
     private func isSwiftLikeLanguage(_ language: String?) -> Bool {
-        guard let lang = language?.lowercased().trimmingCharacters(in: .whitespacesAndNewlines), !lang.isEmpty else {
-            return true // Omitted language blocks usually fallback to Swift-like tokenization gracefully
+        guard let lang = normalizedLanguage(language) else {
+            // Omitted language blocks usually fallback to Swift-like tokenization gracefully.
+            return true
         }
         
-        let swiftAlike = Set(["swift", "c", "cpp", "c++", "objc", "objective-c", "java", "cs", "csharp"])
+        let swiftAlike = Set(["swift", "swift5", "swift6", "swiftlang", "c", "cpp", "c++", "objc", "objective-c", "java", "cs", "csharp"])
         return swiftAlike.contains(lang)
+    }
+
+    private func normalizedLanguage(_ language: String?) -> String? {
+        guard let language else { return nil }
+        let trimmed = language.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return trimmed.lowercased()
     }
 }
 

@@ -1,44 +1,46 @@
-# Technical Debt Roadmap (as of 2026-02-27)
+# Technical Debt Roadmap (as of 2026-03-04)
 
 ## Current Health Snapshot
 
-- `swift test` result: `165` tests executed, all passing.
-- Table rendering strategy is now aligned across code/tests/docs: native `NSTextTable` blocks with GitHub-like cell styling.
-- Test coverage significantly expanded: 22 test files covering parsing, layout, inline formatting, macOS UI, plugin edge cases, and end-to-end integration.
+- `swift test`: **218 tests executed, 0 failures** (latest local run).
+- Snapshot drift issue on macOS has been stabilized by fixing test appearance constraints.
+- Mermaid adapter/API mismatch (`MermaidHTMLBuilder.makeHTML`) has been repaired.
+- Public API facade (`MarkdownKitEngine`) is already available and documented in README.
+- `SplashHighlighter.highlight(_:language:)` now respects explicit language input (non-Swift -> plain fallback).
+- Concurrency boundaries are documented in `docs/ConcurrencyContract.md`.
 
 ## Prioritized Debt List
 
 | Priority | Debt Item | Current Impact | Recommended Action | Done Criteria |
 |---|---|---|---|---|
-| P0 | (Resolved) Table rendering strategy mismatch (code vs test vs docs) | Previously caused CI red and ambiguity | Canonicalized to native `NSTextTable` rendering in implementation, tests, and docs | `swift test` all green; single documented table strategy |
-| P0 | Public API facade is empty (`MarkdownKit.swift`) | Integration path for consumers is unclear | Add a minimal stable facade (`parse + layout + render model`) and keep internals behind it | External caller can render markdown without touching internal classes directly |
-| P1 | Math rendering parity and determinism | UIKit/macOS behavior can diverge; snapshot sizing is fallback-based | Unify platform behavior, make size extraction explicit, and define fallback policy | Same markdown math yields equivalent visual output across supported platforms |
-| P1 | Concurrency guarantees are implicit | `TextKit` objects are class-based and reused; future parallel solve calls may race | Document thread model and enforce isolation boundary (queue/actor or per-task instances) | No shared mutable `TextKit` state accessed concurrently |
-| P1 | (Improved) Documentation drift (coverage + feature docs) | Coverage docs now updated to reflect 165 tests | Continue updating after each test/feature change | Docs reflect current code and test status |
-| P2 | (Partially resolved) Platform test matrix is uneven | macOS UI now tested (8 tests); iOS DataSource still untested | Add iOS DataSource tests and CI matrix notes | Critical rendering paths covered on both target platforms |
-| P2 | (Resolved) Performance targets lack reproducible benchmark baseline | Hard to detect regressions over time | Add reproducible benchmark scenario + output format using `PerformanceProfiler` | Baseline numbers versioned in docs and comparable per commit. See `docs/BENCHMARK_BASELINE.md` |
+| P2 | MathJax unsupported formulas (e.g. `\\binom`) still produce one warning per unique error | Heavy logs can still include warning output, though no longer repeated spam | Keep suppression policy and consider route-to-logger/metrics instead of stdout | Warning signal remains useful without polluting CI output |
+| P2 | Concurrency model still relies on discipline around `@unchecked Sendable` boundaries | Future refactors can accidentally cross isolation assumptions | Add focused stress tests for parser/layout/render interleaving and tighten annotations over time | Key pipelines are contract-tested under concurrent access |
+| P2 | Syntax highlighting is Swift-only | Non-Swift fenced code falls back to plain style; no multi-language tokenization yet | Evaluate adding additional grammars/highlighters or make fallback strategy explicit in public docs | Language support matrix is explicit and test-covered |
+| P2 | iOS table rendering still uses text/tab emulation while macOS uses native table blocks | Cross-platform visual parity gap remains for complex tables | Continue improving iOS readability and clarify parity boundary in docs/tests | Narrow-width and alignment behavior stay stable; constraints documented |
+| P2 | Verification cost for full suite remains high (benchmarks in `swift test`) | Slower local feedback loop | Keep fast-path verification as default and separate heavy benchmark path | Team default command runs quickly; heavy path is explicit |
+| P2 | Documentation drift can reappear as test counts/features evolve | Mismatch between docs and code causes onboarding confusion | Automate or semi-automate doc refresh for coverage/status docs | Coverage/status docs generated from repeatable commands/scripts |
 
 ## Recommended Execution Order
 
-1. Resolve table strategy mismatch first (P0) to get CI and docs back in sync.
-2. Add public API facade (P0) before further feature growth.
-3. Lock down thread-safety boundaries and math parity (P1).
-4. Refresh docs and platform test matrix (P1/P2).
-5. Add repeatable benchmark baseline (P2).
+1. Keep improving iOS table parity within current architecture constraints.
+2. Harden concurrent stress coverage around layout/render boundaries.
+3. Decide multi-language highlighting strategy (keep plain fallback vs add grammars).
+4. Continue reducing full-suite feedback cost.
+5. Continue hardening documentation refresh automation.
 
 ## Suggested Work Batches
 
-### Batch A (Immediate, 1-2 commits)
+### Batch A (Immediate)
 
-- Align table implementation/tests/docs to one strategy.
-- Ensure `swift test` is fully green.
+- Math warning throttling + tests.
+- Verification workflow split (fast vs heavy) and command docs.
 
-### Batch B (Short term)
+### Batch B (Short Term)
 
-- Introduce public API facade in `MarkdownKit.swift`.
-- Document thread-safety contract for layout and async rendering components.
+- Concurrency stress coverage for documented contract.
+- Syntax highlighting strategy decision for non-Swift languages.
 
 ### Batch C (Stabilization)
 
-- Cross-platform math rendering parity updates.
-- Documentation refresh and benchmark baseline publication.
+- iOS table parity incremental improvements.
+- Continue reducing manual documentation maintenance.

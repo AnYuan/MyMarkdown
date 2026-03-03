@@ -19,9 +19,9 @@
 | `docs/FeatureMatrix.md` | 功能状态矩阵 | A | 与测试映射关系清楚，可用于评审和回归 | 新增功能时同步补齐对应测试链接 |
 | `docs/ImplementationChecklist.md` | 原子任务完成记录 | A | 当前波次已完成，闭环明确 | 可保留归档；新波次另开新 checklist |
 | `docs/BENCHMARK_BASELINE.md` | 性能基线与回归阈值参考 | A | 结构完整，可复现命令清晰 | 每次性能阈值调整后重刷数据和 commit 标识 |
-| `docs/TestCoverage.md` | 覆盖率叙述与测试清单 | C | 声明“22 个测试文件、165 测试”，与当前仓库规模不符 | 优先重写为自动生成版（从 `swift test --list-tests` 产出） |
+| `docs/TestCoverage.md` | 覆盖率叙述与测试清单 | B | 已更新到当前统计与执行状态，但仍有手工维护成本 | 建议改为脚本半自动生成，减少后续漂移 |
 | `docs/TechnicalDebtRoadmap.md` | 技术债排序 | B | 仍写“Public API facade is empty”，但 `MarkdownKitEngine` 已实现 | 删除已解决项，补充仍未解决项（并发隔离、数学一致性等） |
-| `docs/evaluation_report.md` | 生产级风险评估 | C | 结论称“缺 URL sanitize/depth/fuzz/snapshot”，已被当前实现推翻 | 重写为“历史评估 + 当前状态”两段式，避免误导 |
+| `docs/evaluation_report.md` | 生产级风险评估 | B | 已修正旧结论并同步当前状态，后续需随风险变化滚动更新 | 每轮稳定性改动后刷新“主要风险”章节 |
 | `docs/Layout.md` | 布局引擎概念说明 | B | 架构描述正确，但偏概念，缺少实现细节与约束 | 增加“现状实现 vs 目标愿景”分节 |
 | `docs/Virtualization.md` | 虚拟化渲染思路 | B | 概念性强，缺少与现有组件对应关系 | 补一节“代码入口索引” |
 | `docs/AST.md` | AST 设计概览 | B | 内容较短，覆盖节点不全 | 扩展为节点族谱和插件插入点索引 |
@@ -37,12 +37,11 @@
 
 - API facade 已存在: `Sources/MarkdownKit/MarkdownKit.swift`
 - 当前测试文件数量: `find Tests/MarkdownKitTests -maxdepth 1 -type f -name '*.swift' | wc -l`（当前为 48）
-- `TestCoverage` 仍声明 22 文件: `docs/TestCoverage.md`
-- `evaluation_report` 仍声明缺安全/深度/fuzz/snapshot: `docs/evaluation_report.md`
+- `TestCoverage` 已更新为当前口径（218 执行 / 0 跳过 / 0 失败）: `docs/TestCoverage.md`
+- `evaluation_report` 已改为当前风险基线: `docs/evaluation_report.md`
 - `TechnicalDebtRoadmap` 仍声明 facade 为空: `docs/TechnicalDebtRoadmap.md`
 
 ## 推荐执行顺序（文档清理）
 
-1. 先修 C 级文档: `docs/TestCoverage.md`, `docs/evaluation_report.md`
-2. 再修 B 级“状态漂移”文档: `docs/TechnicalDebtRoadmap.md`, `docs/CodebaseKnowledge.md`
-3. 最后做结构优化: `docs/Layout.md`, `docs/Virtualization.md`, `docs/AST.md`
+1. 先修 B 级“状态漂移”文档: `docs/TechnicalDebtRoadmap.md`, `docs/CodebaseKnowledge.md`
+2. 再做结构优化: `docs/Layout.md`, `docs/Virtualization.md`, `docs/AST.md`
