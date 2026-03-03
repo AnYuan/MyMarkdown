@@ -7,18 +7,23 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 WITH_BENCHMARKS=0
+FULL_SUITE=0
 
 usage() {
   cat <<'EOF'
-Usage: bash scripts/verify_all.sh [--with-benchmarks|-b]
+Usage: bash scripts/verify_all.sh [--with-benchmarks|-b] [--full|-f]
 
 Runs the deterministic verification suites used for daily regression checks.
 Use --with-benchmarks to include heavier benchmark suites.
+Use --full to run one-shot full validation via `swift test`.
 EOF
 }
 
 for arg in "$@"; do
   case "$arg" in
+    --full|-f)
+      FULL_SUITE=1
+      ;;
     --with-benchmarks|-b)
       WITH_BENCHMARKS=1
       ;;
@@ -35,6 +40,27 @@ for arg in "$@"; do
 done
 
 declare -a FAILURES=()
+
+run_full_suite() {
+  echo
+  echo "============================================================"
+  echo "[START] Full Suite"
+  echo "Command: swift test"
+  echo "============================================================"
+  if swift test; then
+    echo "[PASS] Full Suite"
+    echo
+    echo "Verification passed: full suite completed successfully."
+    exit 0
+  fi
+
+  echo "[FAIL] Full Suite"
+  exit 1
+}
+
+if [[ "$FULL_SUITE" -eq 1 ]]; then
+  run_full_suite
+fi
 
 run_suite() {
   local name="$1"

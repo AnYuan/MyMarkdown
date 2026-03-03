@@ -62,6 +62,12 @@ Optional heavy benchmark suites:
 bash scripts/verify_all.sh --with-benchmarks
 ```
 
+One-shot full suite (includes all tests, including benchmarks/snapshots):
+
+```bash
+bash scripts/verify_all.sh --full
+```
+
 ## Project Structure
 
 - `Sources/MarkdownKit`: core parser, AST nodes, plugins, layout engine, UI components
