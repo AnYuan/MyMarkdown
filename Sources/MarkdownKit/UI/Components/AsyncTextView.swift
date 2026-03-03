@@ -27,7 +27,6 @@ public class AsyncTextView: UIView {
 
     private func setup() {
         self.backgroundColor = .clear
-        self.layer.drawsAsynchronously = true // CoreAnimation hint to draw content to a separate backing store
     }
 
     /// Binds the `LayoutResult` constraint to the view, launching an asynchronous drawing operation.
@@ -65,8 +64,6 @@ public class AsyncTextView: UIView {
         size: CGSize,
         scale: CGFloat
     ) async -> CGImage? {
-        await Task.yield()
-
         let format = UIGraphicsImageRendererFormat()
         format.scale = scale
         let renderer = UIGraphicsImageRenderer(size: size, format: format)
@@ -75,7 +72,7 @@ public class AsyncTextView: UIView {
             let drawRect = CGRect(origin: .zero, size: size)
             drawString.draw(
                 with: drawRect,
-                options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine],
+                options: [.usesLineFragmentOrigin],
                 context: nil
             )
         }

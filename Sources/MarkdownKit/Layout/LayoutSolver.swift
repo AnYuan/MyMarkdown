@@ -820,6 +820,7 @@ public final class LayoutSolver {
 
             let paragraphStyle = NSMutableParagraphStyle()
             paragraphStyle.tabStops = tabStops
+            paragraphStyle.alignment = tableTextAlignment(for: table, column: 0)
             paragraphStyle.lineHeightMultiple = theme.paragraph.lineHeightMultiple
             paragraphStyle.paragraphSpacing = 2
 
