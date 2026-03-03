@@ -12,6 +12,15 @@ This document breaks down the execution strategy to fulfill the requirements def
 ## Current Execution Plan: Automation-First Verification Program
 This execution wave prioritizes automated verification before adding more feature surface. The goal is to remove manual UI checking as the default validation path.
 
+### Verification Entry Point (2026-03-03)
+Primary daily gate now has a single command wrapper:
+
+```bash
+bash scripts/verify_all.sh
+```
+
+It runs syntax matrix, plugin correctness, layout regressions, security suites, and CommonMark semantic subset checks. Optional benchmark suites can be included with `--with-benchmarks`.
+
 ### Phase A: Test Strategy Baseline (Docs + Scope Lock)
 **Goal**: lock verification scope and merge criteria.
 1. Update PRD quality sections with mandatory automation gates.

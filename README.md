@@ -50,10 +50,23 @@ let layout = await MarkdownKitEngine.layout(
 print(layout.children.count)
 ```
 
+## Automated Verification
+
+```bash
+bash scripts/verify_all.sh
+```
+
+Optional heavy benchmark suites:
+
+```bash
+bash scripts/verify_all.sh --with-benchmarks
+```
+
 ## Project Structure
 
 - `Sources/MarkdownKit`: core parser, AST nodes, plugins, layout engine, UI components
 - `Sources/MarkdownKitDemo`: demo app
 - `Tests/MarkdownKitTests`: unit/integration tests
 - `docs/`: PRD, feature notes, roadmap
+- `scripts/`: local automation and verification entrypoints
 - `tasks/`: implementation checklist
