@@ -40,164 +40,105 @@ public struct MarkdownKitVisitor: MarkupVisitor {
     // MARK: - Basic Nodes
     
     public mutating func visitHeading(_ heading: Heading) -> [MarkdownNode] {
-        let children = defaultVisit(heading)
-        let node = HeaderNode(range: heading.range, level: heading.level, children: children)
-        return [node]
+        HeadingMapper().map(heading, visitor: &self)
     }
     
     public mutating func visitParagraph(_ paragraph: Paragraph) -> [MarkdownNode] {
-        let children = defaultVisit(paragraph)
-        let node = ParagraphNode(range: paragraph.range, children: children)
-        return [node]
+        ParagraphMapper().map(paragraph, visitor: &self)
     }
     
     public mutating func visitText(_ text: Text) -> [MarkdownNode] {
-        let node = TextNode(range: text.range, text: text.string)
-        return [node]
+        TextMapper().map(text, visitor: &self)
     }
     
     // MARK: - Complex Nodes
     
     public mutating func visitCodeBlock(_ codeBlock: CodeBlock) -> [MarkdownNode] {
-        let node = CodeBlockNode(range: codeBlock.range,
-                                 language: codeBlock.language,
-                                 code: codeBlock.code)
-        return [node]
+        CodeBlockMapper().map(codeBlock, visitor: &self)
     }
     
     public mutating func visitInlineCode(_ inlineCode: InlineCode) -> [MarkdownNode] {
-        let node = InlineCodeNode(range: inlineCode.range, code: inlineCode.code)
-        return [node]
+        InlineCodeMapper().map(inlineCode, visitor: &self)
     }
     
     public mutating func visitImage(_ image: Image) -> [MarkdownNode] {
-        let node = ImageNode(range: image.range,
-                             source: image.source,
-                             altText: image.plainText,
-                             title: image.title)
-        return [node]
+        ImageMapper().map(image, visitor: &self)
     }
     
     public mutating func visitLink(_ link: Link) -> [MarkdownNode] {
-        let children = defaultVisit(link)
-        let node = LinkNode(range: link.range,
-                            destination: link.destination,
-                            title: link.title,
-                            children: children)
-        return [node]
+        LinkMapper().map(link, visitor: &self)
     }
     
     // MARK: - Lists
     
     public mutating func visitOrderedList(_ orderedList: OrderedList) -> [MarkdownNode] {
-        let children = defaultVisit(orderedList)
-        let node = ListNode(range: orderedList.range, isOrdered: true, children: children)
-        return [node]
+        OrderedListMapper().map(orderedList, visitor: &self)
     }
     
     public mutating func visitUnorderedList(_ unorderedList: UnorderedList) -> [MarkdownNode] {
-        let children = defaultVisit(unorderedList)
-        let node = ListNode(range: unorderedList.range, isOrdered: false, children: children)
-        return [node]
+        UnorderedListMapper().map(unorderedList, visitor: &self)
     }
     
     public mutating func visitListItem(_ listItem: ListItem) -> [MarkdownNode] {
-        let children = defaultVisit(listItem)
-        let checkboxState: CheckboxState
-        switch listItem.checkbox {
-        case .checked: checkboxState = .checked
-        case .unchecked: checkboxState = .unchecked
-        case .none: checkboxState = .none
-        }
-        let node = ListItemNode(range: listItem.range, checkbox: checkboxState, children: children)
-        return [node]
+        ListItemMapper().map(listItem, visitor: &self)
     }
     
     // MARK: - Tables (GFM)
     
     public mutating func visitTable(_ table: Table) -> [MarkdownNode] {
-        let children = defaultVisit(table)
-        let alignments = table.columnAlignments.map { alignment -> TableAlignment? in
-            switch alignment {
-            case .left: return .left
-            case .right: return .right
-            case .center: return .center
-            case .none: return .none
-            @unknown default: return .none
-            }
-        }
-        let node = TableNode(range: table.range, columnAlignments: alignments, children: children)
-        return [node]
+        TableMapper().map(table, visitor: &self)
     }
     
     public mutating func visitTableHead(_ tableHead: Table.Head) -> [MarkdownNode] {
-        let children = defaultVisit(tableHead)
-        let node = TableHeadNode(range: tableHead.range, children: children)
-        return [node]
+        TableHeadMapper().map(tableHead, visitor: &self)
     }
     
     public mutating func visitTableBody(_ tableBody: Table.Body) -> [MarkdownNode] {
-        let children = defaultVisit(tableBody)
-        let node = TableBodyNode(range: tableBody.range, children: children)
-        return [node]
+        TableBodyMapper().map(tableBody, visitor: &self)
     }
     
     public mutating func visitTableRow(_ tableRow: Table.Row) -> [MarkdownNode] {
-        let children = defaultVisit(tableRow)
-        let node = TableRowNode(range: tableRow.range, children: children)
-        return [node]
+        TableRowMapper().map(tableRow, visitor: &self)
     }
     
     public mutating func visitTableCell(_ tableCell: Table.Cell) -> [MarkdownNode] {
-        let children = defaultVisit(tableCell)
-        let node = TableCellNode(range: tableCell.range, children: children)
-        return [node]
+        TableCellMapper().map(tableCell, visitor: &self)
     }
     
     // MARK: - Inline Formatting
 
     public mutating func visitEmphasis(_ emphasis: Emphasis) -> [MarkdownNode] {
-        let children = defaultVisit(emphasis)
-        let node = EmphasisNode(range: emphasis.range, children: children)
-        return [node]
+        EmphasisMapper().map(emphasis, visitor: &self)
     }
 
     public mutating func visitStrong(_ strong: Strong) -> [MarkdownNode] {
-        let children = defaultVisit(strong)
-        let node = StrongNode(range: strong.range, children: children)
-        return [node]
+        StrongMapper().map(strong, visitor: &self)
     }
 
     public mutating func visitStrikethrough(_ strikethrough: Strikethrough) -> [MarkdownNode] {
-        let children = defaultVisit(strikethrough)
-        let node = StrikethroughNode(range: strikethrough.range, children: children)
-        return [node]
+        StrikethroughMapper().map(strikethrough, visitor: &self)
     }
 
     // MARK: - Block Elements
 
     public mutating func visitBlockQuote(_ blockQuote: BlockQuote) -> [MarkdownNode] {
-        let children = defaultVisit(blockQuote)
-        let node = BlockQuoteNode(range: blockQuote.range, children: children)
-        return [node]
+        BlockQuoteMapper().map(blockQuote, visitor: &self)
     }
 
     public mutating func visitThematicBreak(_ thematicBreak: ThematicBreak) -> [MarkdownNode] {
-        let node = ThematicBreakNode(range: thematicBreak.range)
-        return [node]
+        ThematicBreakMapper().map(thematicBreak, visitor: &self)
     }
 
     public mutating func visitHTMLBlock(_ html: HTMLBlock) -> [MarkdownNode] {
-        let node = TextNode(range: html.range, text: html.rawHTML)
-        return [node]
+        HTMLBlockMapper().map(html, visitor: &self)
     }
 
     public mutating func visitSoftBreak(_ softBreak: SoftBreak) -> [MarkdownNode] {
-        return [TextNode(range: softBreak.range, text: " ")]
+        SoftBreakMapper().map(softBreak, visitor: &self)
     }
 
     public mutating func visitLineBreak(_ lineBreak: LineBreak) -> [MarkdownNode] {
-        return [TextNode(range: lineBreak.range, text: "\n")]
+        LineBreakMapper().map(lineBreak, visitor: &self)
     }
 
     // MARK: - Math (Extensions)
@@ -206,9 +147,6 @@ public struct MarkdownKitVisitor: MarkupVisitor {
     /// To support ChatGPT parity (`$$` and `$`), our Custom AST Middleware will usually attach these later by finding specific `TextNode` string patterns.
     /// However, if an extension is added to `swift-markdown` or inline HTML block evaluates to math, we intercept it here.
     public mutating func visitInlineHTML(_ inlineHTML: InlineHTML) -> [MarkdownNode] {
-        // Simple fallback to convert raw HTML into a Text Node for now.
-        // In a complete implementation, this would look for `<math>` tags or `$$` markers.
-        let node = TextNode(range: inlineHTML.range, text: inlineHTML.rawHTML)
-        return [node]
+        InlineHTMLMapper().map(inlineHTML, visitor: &self)
     }
 }

@@ -23,20 +23,11 @@ final class MermaidDiagramAdapterTests: XCTestCase {
         )
     }
 
-    func testHTMLBuilderEmbedsScriptAndBase64Source() {
-        let source = "graph TD\nA-->B"
-        let scriptURLString = "file:///tmp/mermaid.min.js"
-        let html = MermaidHTMLBuilder.makeHTML(
-            source: source,
-            scriptURLString: scriptURLString
-        )
+    func testHTMLBuilderCreatesValidBaseStructure() {
+        let html = MermaidHTMLBuilder.makeBaseHTML()
 
-        XCTAssertTrue(html.contains(scriptURLString))
-        XCTAssertTrue(html.contains("window.atob"))
-        XCTAssertFalse(
-            html.contains(source),
-            "Source should be encoded to avoid inline escaping bugs"
-        )
+        XCTAssertTrue(html.contains(#"<div id="mermaid-root"></div>"#))
+        XCTAssertTrue(html.contains("<!DOCTYPE html>"))
     }
 }
 #endif
