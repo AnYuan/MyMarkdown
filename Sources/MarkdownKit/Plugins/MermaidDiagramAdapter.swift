@@ -57,8 +57,7 @@ enum MermaidResourceLocator {
 }
 
 enum MermaidHTMLBuilder {
-    static func makeHTML(source: String, scriptURLString: String) -> String {
-        let sourceBase64 = Data(source.utf8).base64EncodedString()
+    static func makeBaseHTML() -> String {
         return """
         <!DOCTYPE html>
         <html>
@@ -69,22 +68,6 @@ enum MermaidHTMLBuilder {
                 html, body { margin: 0; padding: 0; background-color: transparent; overflow: hidden; }
                 #mermaid-root { background-color: transparent; display: inline-block; }
             </style>
-            <script src="\(scriptURLString)"></script>
-            <script>
-                (function() {
-                    if (!window.mermaid) { return; }
-                    const root = document.getElementById('mermaid-root');
-                    if (!root) { return; }
-                    const source = window.atob('\(sourceBase64)');
-                    root.textContent = source;
-                    window.mermaid.initialize({
-                        startOnLoad: false,
-                        theme: 'default',
-                        securityLevel: 'strict'
-                    });
-                    window.mermaid.run({ nodes: [root] });
-                })();
-            </script>
         </head>
         <body>
             <div id="mermaid-root"></div>
@@ -107,9 +90,11 @@ private class MermaidSnapshotter: NSObject, WKNavigationDelegate {
     private var queue: [(source: String, continuation: CheckedContinuation<NativeImage?, Never>)] = []
     private let renderTimeout: TimeInterval = 4.0
     private let snapshotDimensionLimit: CGFloat = 2048
+    private var isWebViewReady = false
     
     override init() {
         let configuration = WKWebViewConfiguration()
+
         webView = WKWebView(
             frame: CGRect(x: 0, y: 0, width: 640, height: 480),
             configuration: configuration
@@ -124,6 +109,9 @@ private class MermaidSnapshotter: NSObject, WKNavigationDelegate {
         #elseif canImport(AppKit)
         webView.setValue(false, forKey: "drawsBackground")
         #endif
+
+        // Load base HTML and inject JS once
+        webView.loadHTMLString(MermaidHTMLBuilder.makeBaseHTML(), baseURL: nil)
     }
     
     func takeSnapshot(source: String) async -> NativeImage? {
@@ -143,23 +131,97 @@ private class MermaidSnapshotter: NSObject, WKNavigationDelegate {
         activeRenderToken = renderToken
 
         let timeout = DispatchWorkItem { [weak self] in
-            self?.completeCurrentRender(image: nil, token: renderToken)
+            if self?.activeRenderToken == renderToken {
+                print("Mermaid WebView rendering timed out")
+                self?.completeCurrentRender(image: nil, token: renderToken)
+            }
         }
         timeoutWorkItem = timeout
         DispatchQueue.main.asyncAfter(deadline: .now() + renderTimeout, execute: timeout)
 
-        let html = MermaidHTMLBuilder.makeHTML(
-            source: source,
-            scriptURLString: MermaidResourceLocator.preferredScriptURLString()
-        )
-        webView.loadHTMLString(html, baseURL: MermaidResourceLocator.preferredBaseURL())
+        if !isWebViewReady {
+            // Re-queue it, wait for initialization
+            queue.insert((source, continuation), at: 0)
+            isRendering = false
+            return
+        }
+
+        let sourceBase64 = Data(source.utf8).base64EncodedString()
+        let renderJS = """
+        (function() {
+            try {
+                if (!window.mermaid) {
+                    console.error("window.mermaid is missing");
+                    return null;
+                }
+                const root = document.getElementById('mermaid-root');
+                if (!root) { return null; }
+                
+                // Clear old diagram
+                root.innerHTML = '';
+                root.removeAttribute('data-processed');
+                
+                const source = window.atob('\(sourceBase64)');
+                root.textContent = source;
+                
+                window.mermaid.initialize({
+                    startOnLoad: false,
+                    theme: 'default',
+                    securityLevel: 'strict'
+                });
+                
+                // Must be sync in order for execution to finish
+                window.mermaid.run({ nodes: [root] });
+                return "OK";
+            } catch (e) {
+                return e.toString();
+            }
+        })();
+        """
+
+        webView.evaluateJavaScript(renderJS) { [weak self, weak webView] result, error in
+            guard let self, let webView else { return }
+            
+            if let error = error {
+                print("Mermaid inline JS evaluation error: \\(error)")
+                self.completeCurrentRender(image: nil)
+                return
+            }
+            
+            if let resultStr = result as? String, resultStr == "OK" {
+                // Wait briefly for SVG reflow
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    self.snapshotRenderedSVG(from: webView)
+                }
+            } else {
+                print("Mermaid inline JS failed: \\(String(describing: result))")
+                self.completeCurrentRender(image: nil)
+            }
+        }
     }
     
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        // Wait briefly for Mermaid JS execution and SVG layout.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self, weak webView] in
-            guard let self, let webView else { return }
-            self.snapshotRenderedSVG(from: webView)
+        // Once HTML is loaded, inject mermaid.min.js manually to ensure global scope
+        if let scriptURL = MermaidResourceLocator.bundledScriptURL(),
+           let scriptSource = try? String(contentsOf: scriptURL, encoding: .utf8) {
+            webView.evaluateJavaScript(scriptSource) { [weak self] _, error in
+                guard let self else { return }
+                if let error = error {
+                    print("Failed to initialize mermaid JS bundle: \\(error)")
+                } else {
+                    self.isWebViewReady = true
+                    // Process any queued items
+                    let pending = self.queue
+                    self.queue.removeAll()
+                    self.isRendering = false
+                    for item in pending {
+                        self.queue.append(item)
+                    }
+                    self.processNext()
+                }
+            }
+        } else {
+            print("Could not load Mermaid script source")
         }
     }
 
@@ -168,6 +230,7 @@ private class MermaidSnapshotter: NSObject, WKNavigationDelegate {
         didFail navigation: WKNavigation!,
         withError error: Error
     ) {
+        print("Mermaid WebView failed navigation: \(error)")
         completeCurrentRender(image: nil)
     }
 
@@ -176,6 +239,7 @@ private class MermaidSnapshotter: NSObject, WKNavigationDelegate {
         didFailProvisionalNavigation navigation: WKNavigation!,
         withError error: Error
     ) {
+        print("Mermaid WebView failed provisional navigation: \(error)")
         completeCurrentRender(image: nil)
     }
 
@@ -199,10 +263,16 @@ private class MermaidSnapshotter: NSObject, WKNavigationDelegate {
         webView.evaluateJavaScript(sizeJS) { [weak self, weak webView] result, error in
             guard let self, let webView else { return }
 
-            guard error == nil,
-                  let dimensions = result as? [String: Any],
+            if let error = error {
+                print("Mermaid JS evaluation error: \(error)")
+                self.completeCurrentRender(image: nil)
+                return
+            }
+
+            guard let dimensions = result as? [String: Any],
                   let width = dimensions["width"] as? Double,
                   let height = dimensions["height"] as? Double else {
+                print("Mermaid JS evaluation returned invalid result: \(String(describing: result))")
                 self.completeCurrentRender(image: nil)
                 return
             }

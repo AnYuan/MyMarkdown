@@ -8,6 +8,8 @@ import AppKit
 
 @MainActor
 final class SnapshotTests: XCTestCase {
+
+    private let snapshotAppearance = NSAppearance(named: .aqua)
     
     override func setUp() {
         super.setUp()
@@ -41,6 +43,10 @@ final class SnapshotTests: XCTestCase {
         item.configure(with: layout)
         
         let container = NSView(frame: NSRect(origin: .zero, size: layout.size))
+        if let snapshotAppearance {
+            item.view.appearance = snapshotAppearance
+            container.appearance = snapshotAppearance
+        }
         container.addSubview(item.view)
         
         // Assert snapshot directly on the container view
@@ -76,6 +82,10 @@ final class SnapshotTests: XCTestCase {
         item.configure(with: layout)
         
         let container = NSView(frame: NSRect(origin: .zero, size: layout.size))
+        if let snapshotAppearance {
+            item.view.appearance = snapshotAppearance
+            container.appearance = snapshotAppearance
+        }
         container.addSubview(item.view)
         
         // Assert snapshot directly on the container view
@@ -102,6 +112,9 @@ final class SnapshotTests: XCTestCase {
         // Assert snapshot for the entire document wrapper container 
         let totalHeight = layoutRoot.children.reduce(0) { $0 + $1.size.height }
         let container = NSView(frame: NSRect(origin: .zero, size: CGSize(width: 400, height: totalHeight)))
+        if let snapshotAppearance {
+            container.appearance = snapshotAppearance
+        }
         
         // Let's just stack the children
         var currentY: CGFloat = totalHeight
@@ -109,6 +122,9 @@ final class SnapshotTests: XCTestCase {
             let item = MarkdownItemView()
             item.loadView()
             item.view.frame = NSRect(x: 0, y: currentY - childLayout.size.height, width: childLayout.size.width, height: childLayout.size.height)
+            if let snapshotAppearance {
+                item.view.appearance = snapshotAppearance
+            }
             item.configure(with: childLayout)
             currentY -= childLayout.size.height
             container.addSubview(item.view)
@@ -141,6 +157,10 @@ final class SnapshotTests: XCTestCase {
         item.configure(with: layout)
         
         let container = NSView(frame: NSRect(origin: .zero, size: layout.size))
+        if let snapshotAppearance {
+            item.view.appearance = snapshotAppearance
+            container.appearance = snapshotAppearance
+        }
         container.addSubview(item.view)
         
         assertSnapshot(of: container, as: .image)
