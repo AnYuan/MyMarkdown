@@ -61,17 +61,43 @@ public class MarkdownItemView: NSCollectionViewItem {
 
     public static let reuseIdentifier = NSUserInterfaceItemIdentifier("MarkdownItemView")
 
-    private var hostedView: NSView?
+    private var hostedView: InteractiveTextView?
 
     public override func loadView() {
         self.view = NSView()
         self.view.wantsLayer = true
+        
+        // Initialize once to enable NSCollectionView recycling
+        let textView = InteractiveTextView()
+        textView.isEditable = false
+        textView.isSelectable = false
+        textView.drawsBackground = false
+        textView.textContainerInset = .zero
+        textView.textContainer?.lineFragmentPadding = 0
+        textView.textContainer?.widthTracksTextView = true
+        
+        self.view.addSubview(textView)
+        self.hostedView = textView
     }
 
     public override func prepareForReuse() {
         super.prepareForReuse()
-        hostedView?.removeFromSuperview()
-        hostedView = nil
+        // Reset state without destroying the view hierarchy
+        hostedView?.textStorage?.setAttributedString(NSAttributedString())
+        hostedView?.onSummaryClick = nil
+        hostedView?.onCheckboxToggle = nil
+        hostedView?.onLinkTap = nil
+        hostedView?.summaryCharacterRange = NSRange(location: NSNotFound, length: 0)
+        
+        // Reset accessibility
+        hostedView?.setAccessibilityRole(.none)
+        hostedView?.setAccessibilityLabel(nil)
+        hostedView?.setAccessibilityValue(nil)
+        
+        // Reset styling modifications from specific node types
+        hostedView?.drawsBackground = false
+        hostedView?.layer?.cornerRadius = 0
+        hostedView?.textContainerInset = .zero
     }
 
     public func configure(
@@ -80,15 +106,14 @@ public class MarkdownItemView: NSCollectionViewItem {
         onCheckboxToggle: ((CheckboxInteractionData) -> Void)? = nil,
         onLinkTap: ((URL) -> Void)? = nil
     ) {
-        hostedView?.removeFromSuperview()
-        hostedView = nil
-
         self.view.frame.size = layout.size
 
-        guard let attrString = layout.attributedString, attrString.length > 0 else { return }
+        guard let attrString = layout.attributedString, attrString.length > 0,
+              let textView = hostedView else { return }
 
-        // Use InteractiveTextView for proper multi-line rich text rendering and interaction.
-        let textView = InteractiveTextView(frame: NSRect(origin: .zero, size: layout.size))
+        // Resize recycled view
+        textView.frame = NSRect(origin: .zero, size: layout.size)
+        
         textView.onCheckboxToggle = onCheckboxToggle
         textView.onLinkTap = onLinkTap
 
@@ -96,13 +121,6 @@ public class MarkdownItemView: NSCollectionViewItem {
             textView.summaryCharacterRange = detailsSummaryRange(in: attrString.string)
             textView.onSummaryClick = { onToggleDetails?(details) }
         }
-
-        textView.isEditable = false
-        textView.isSelectable = false
-        textView.drawsBackground = false
-        textView.textContainerInset = .zero
-        textView.textContainer?.lineFragmentPadding = 0
-        textView.textContainer?.widthTracksTextView = true
 
         // Replace text storage content with our pre-styled attributed string
         textView.textStorage?.setAttributedString(attrString)
@@ -149,8 +167,6 @@ public class MarkdownItemView: NSCollectionViewItem {
             }
         }
 
-        view.addSubview(textView)
-        hostedView = textView
     }
 
     private func detailsSummaryRange(in text: String) -> NSRange {

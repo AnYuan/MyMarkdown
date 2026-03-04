@@ -263,6 +263,7 @@ final class BenchmarkNodeTypeTests: XCTestCase {
     private func benchmarkNodeTypes(parser: MarkdownParser) async -> [BenchmarkResult] {
         var results: [BenchmarkResult] = []
         for (name, content) in BenchmarkFixtures.nodeTypeFixtures {
+
             let doc = parser.parse(content)
             results.append(
                 await harness.measureAsync(label: "solve", fixture: name) {
@@ -277,6 +278,7 @@ final class BenchmarkNodeTypeTests: XCTestCase {
     private func benchmarkWidths(doc: DocumentNode) async -> [BenchmarkResult] {
         var results: [BenchmarkResult] = []
         for width in [320, 600, 800, 1024] as [CGFloat] {
+
             results.append(
                 await harness.measureAsync(label: "solve@\(Int(width))w", fixture: "medium") {
                     let solver = LayoutSolver(cache: LayoutCache())
@@ -293,6 +295,7 @@ final class BenchmarkNodeTypeTests: XCTestCase {
         var parseResults: [BenchmarkResult] = []
         var layoutResults: [BenchmarkResult] = []
         for (name, content) in BenchmarkFixtures.scalingFixtures {
+
             parseResults.append(
                 harness.measure(label: "parse", fixture: name) {
                     _ = parser.parse(content)

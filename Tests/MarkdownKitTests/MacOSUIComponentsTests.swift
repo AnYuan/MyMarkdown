@@ -57,7 +57,7 @@ final class MacOSUIComponentsTests: XCTestCase {
         XCTAssertEqual(textView.layer?.cornerRadius, 6, "Code block should have corner radius of 6")
     }
 
-    func testConfigureWithNilAttributedStringAddsNoSubview() {
+    func testConfigureWithNilAttributedStringLeavesViewEmpty() {
         let item = MarkdownItemView()
         item.loadView()
 
@@ -69,11 +69,15 @@ final class MacOSUIComponentsTests: XCTestCase {
         )
 
         item.configure(with: layoutResult)
-        XCTAssertEqual(item.view.subviews.count, 0,
-            "Nil attributed string should not add any subview")
+        
+        guard let textView = item.view.subviews.first as? NSTextView else {
+            XCTFail("Expected NSTextView subview")
+            return
+        }
+        XCTAssertEqual(textView.textStorage?.length ?? 0, 0, "Nil string should leave text view empty")
     }
 
-    func testConfigureWithEmptyAttributedStringAddsNoSubview() {
+    func testConfigureWithEmptyAttributedStringLeavesViewEmpty() {
         let item = MarkdownItemView()
         item.loadView()
 
@@ -86,11 +90,14 @@ final class MacOSUIComponentsTests: XCTestCase {
         )
 
         item.configure(with: layoutResult)
-        XCTAssertEqual(item.view.subviews.count, 0,
-            "Empty attributed string should not add any subview")
+        guard let textView = item.view.subviews.first as? NSTextView else {
+            XCTFail("Expected NSTextView subview")
+            return
+        }
+        XCTAssertEqual(textView.textStorage?.length ?? 0, 0, "Empty string should leave text view empty")
     }
 
-    func testPrepareForReuseRemovesHostedView() {
+    func testPrepareForReuseClearsHostedView() {
         let item = MarkdownItemView()
         item.loadView()
 
@@ -103,14 +110,18 @@ final class MacOSUIComponentsTests: XCTestCase {
         )
 
         item.configure(with: layoutResult)
-        XCTAssertEqual(item.view.subviews.count, 1)
+        guard let textView = item.view.subviews.first as? NSTextView else {
+            XCTFail("Expected NSTextView subview")
+            return
+        }
+        XCTAssertEqual(textView.textStorage?.string, "Hello")
 
         item.prepareForReuse()
-        XCTAssertEqual(item.view.subviews.count, 0,
-            "prepareForReuse should remove all hosted views")
+        XCTAssertEqual(textView.textStorage?.length ?? 0, 0,
+            "prepareForReuse should clear all text content from the recycled view")
     }
 
-    func testReconfigureReplacesHostedView() {
+    func testReconfigureRecyclesHostedView() {
         let item = MarkdownItemView()
         item.loadView()
 
@@ -127,14 +138,14 @@ final class MacOSUIComponentsTests: XCTestCase {
 
         item.configure(with: layout2)
         XCTAssertEqual(item.view.subviews.count, 1,
-            "Reconfigure should replace (not stack) hosted views")
+            "Reconfigure should recycle the single subview instance")
 
         guard let textView = item.view.subviews[0] as? NSTextView else {
             XCTFail("Expected NSTextView subview")
             return
         }
         XCTAssertTrue(textView.textStorage?.string.contains("Second") ?? false,
-            "Reconfigured text view should show new content")
+            "Recycled text view should show new content")
     }
 
     // MARK: - MarkdownCollectionView

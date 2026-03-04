@@ -23,11 +23,13 @@ public struct MarkdownKitVisitor: MarkupVisitor {
         }
         
         currentDepth += 1
+        defer { currentDepth -= 1 }
+        
         var children: [MarkdownNode] = []
         for child in markup.children {
             children.append(contentsOf: visit(child))
         }
-        currentDepth -= 1
+        
         return children
     }
     

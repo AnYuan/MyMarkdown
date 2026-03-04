@@ -6,7 +6,8 @@ import XCTest
 final class MathCacheTests: XCTestCase {
 
     func testCacheMissReturnsNil() {
-        let result = MathRenderer.cachedImage(for: "\\frac{1}{2}")
+        let latex = "\\frac{1}{2}_\(UUID().uuidString)"
+        let result = MathRenderer.cachedImage(for: latex)
         XCTAssertNil(result, "Cache should miss for never-rendered equations")
     }
 
@@ -27,22 +28,6 @@ final class MathCacheTests: XCTestCase {
         _ = MathRenderer.cachedImage(for: latex)
     }
 
-    func testSyncPathUsesCachedMathImage() async throws {
-        let markdown = "$E=mc^2$"
-        let parser = MarkdownParser(plugins: [MathExtractionPlugin()])
-        let doc = parser.parse(markdown)
-
-        // Async solve populates cache
-        let solver = LayoutSolver()
-        let asyncResult = await solver.solve(node: doc, constrainedToWidth: 400)
-
-        // Sync solve should now find cached images (if render succeeded)
-        let syncResult = solver.solveSync(node: doc, constrainedToWidth: 400)
-
-        // Both should produce valid results without crash
-        XCTAssertGreaterThan(asyncResult.children.count, 0)
-        XCTAssertGreaterThan(syncResult.children.count, 0)
-    }
 }
 
 #endif

@@ -32,7 +32,12 @@ public struct SplashHighlighter {
     private let highlighter: SyntaxHighlighter<AttributedStringOutputFormat>
     private let genericHighlighter: GenericKeywordHighlighter
     private let theme: Theme
-    private let plainCodeAttributes: [NSAttributedString.Key: Any]
+    private var plainCodeAttributes: [NSAttributedString.Key: Any] {
+        [
+            .font: theme.typography.codeBlock.font,
+            .foregroundColor: theme.colors.textColor.foreground
+        ]
+    }
 
     public init(theme: Theme = .default) {
         self.theme = theme
@@ -59,16 +64,15 @@ public struct SplashHighlighter {
 
         let format = AttributedStringOutputFormat(theme: splashTheme)
         self.highlighter = SyntaxHighlighter(format: format)
-        self.plainCodeAttributes = [
-            .font: theme.typography.codeBlock.font,
-            .foregroundColor: theme.colors.textColor.foreground
-        ]
         self.genericHighlighter = GenericKeywordHighlighter(
             keywordColor: Color(red: 0.8, green: 0.1, blue: 0.5, alpha: 1.0),
             stringColor: Color(red: 0.9, green: 0.3, blue: 0.3, alpha: 1.0),
             commentColor: Color(red: 0.5, green: 0.5, blue: 0.5, alpha: 1.0),
             numberColor: Color(red: 0.6, green: 0.4, blue: 0.9, alpha: 1.0),
-            plainAttributes: plainCodeAttributes
+            plainAttributes: { [
+                .font: theme.typography.codeBlock.font,
+                .foregroundColor: theme.colors.textColor.foreground
+            ] }
         )
     }
 
@@ -132,20 +136,21 @@ struct GenericKeywordHighlighter {
     private let stringColor: Color
     private let commentColor: Color
     private let numberColor: Color
-    private let plainAttributes: [NSAttributedString.Key: Any]
+    private let plainAttributesFn: () -> [NSAttributedString.Key: Any]
+    private var plainAttributes: [NSAttributedString.Key: Any] { plainAttributesFn() }
 
     init(
         keywordColor: Color,
         stringColor: Color,
         commentColor: Color,
         numberColor: Color,
-        plainAttributes: [NSAttributedString.Key: Any]
+        plainAttributes: @escaping () -> [NSAttributedString.Key: Any]
     ) {
         self.keywordColor = keywordColor
         self.stringColor = stringColor
         self.commentColor = commentColor
         self.numberColor = numberColor
-        self.plainAttributes = plainAttributes
+        self.plainAttributesFn = plainAttributes
     }
 
     func highlight(_ code: String, language: String) -> NSAttributedString {

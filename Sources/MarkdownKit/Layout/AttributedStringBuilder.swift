@@ -27,7 +27,7 @@ struct AttributedStringBuilder {
         
         switch node {
         case let table as TableNode:
-            string.append(buildTableAttributedString(from: table, constrainedToWidth: maxWidth))
+            string.append(TableAttributedStringBuilder.build(from: table, theme: theme, constrainedToWidth: maxWidth))
 
         case let diagram as DiagramNode:
             // This case is now handled in solve() for size calculation, but we still need to build the string here
@@ -58,29 +58,7 @@ struct AttributedStringBuilder {
             string.append(NSAttributedString(string: text.text, attributes: attributes))
             
         case let math as MathNode:
-            // Suspend while MathJaxSwift converts TeX to SVG and the renderer rasterizes attachment image
-            if let image = await renderMath(latex: math.equation, display: !math.isInline) {
-                let attachment = NSTextAttachment()
-                #if canImport(UIKit)
-                attachment.image = image
-                #elseif canImport(AppKit)
-                attachment.image = image
-                #endif
-
-                // Align inline math vertically with surrounding text metrics.
-                attachment.bounds = attachmentBounds(
-                    for: image.size,
-                    isInline: math.isInline,
-                    font: theme.typography.paragraph.font
-                )
-
-                let attrString = NSAttributedString(attachment: attachment)
-                string.append(attrString)
-            } else {
-                // Fallback to raw text if conversion/rasterization fails.
-                let attr = defaultAttributes(for: theme.typography.codeBlock)
-                string.append(NSAttributedString(string: math.equation, attributes: attr))
-            }
+            string.append(await MathAttachmentBuilder.build(from: math, theme: theme))
             
         case let paragraph as ParagraphNode:
             let baseAttrs = defaultAttributes(for: theme.typography.paragraph)
@@ -222,7 +200,7 @@ struct AttributedStringBuilder {
 
         switch node {
         case let table as TableNode:
-            string.append(buildTableAttributedString(from: table, constrainedToWidth: maxWidth))
+            string.append(TableAttributedStringBuilder.build(from: table, theme: theme, constrainedToWidth: maxWidth))
 
         case let header as HeaderNode:
             let token = themeToken(forHeaderLevel: header.level)
@@ -234,24 +212,7 @@ struct AttributedStringBuilder {
             string.append(NSAttributedString(string: text.text, attributes: attributes))
 
         case let math as MathNode:
-            #if canImport(WebKit)
-            if let image = MathRenderer.cachedImage(for: math.equation) {
-                let attachment = NSTextAttachment()
-                attachment.image = image
-                attachment.bounds = attachmentBounds(
-                    for: image.size,
-                    isInline: math.isInline,
-                    font: theme.typography.paragraph.font
-                )
-                string.append(NSAttributedString(attachment: attachment))
-            } else {
-                let attr = defaultAttributes(for: theme.typography.codeBlock)
-                string.append(NSAttributedString(string: math.equation, attributes: attr))
-            }
-            #else
-            let attr = defaultAttributes(for: theme.typography.codeBlock)
-            string.append(NSAttributedString(string: math.equation, attributes: attr))
-            #endif
+            string.append(MathAttachmentBuilder.buildSync(from: math, theme: theme))
 
         case let paragraph as ParagraphNode:
             let baseAttrs = defaultAttributes(for: theme.typography.paragraph)
@@ -378,26 +339,7 @@ struct AttributedStringBuilder {
                 stAttrs[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
                 result.append(buildInlineAttributedStringSync(from: strikethrough.children, baseAttributes: stAttrs))
             case let math as MathNode:
-                #if canImport(WebKit)
-                if let image = MathRenderer.cachedImage(for: math.equation) {
-                    let attachment = NSTextAttachment()
-                    attachment.image = image
-                    attachment.bounds = attachmentBounds(
-                        for: image.size,
-                        isInline: math.isInline,
-                        font: theme.typography.paragraph.font
-                    )
-                    result.append(NSAttributedString(attachment: attachment))
-                } else {
-                    var mathAttrs = baseAttributes
-                    mathAttrs[.font] = theme.typography.codeBlock.font
-                    result.append(NSAttributedString(string: math.equation, attributes: mathAttrs))
-                }
-                #else
-                var mathAttrs = baseAttributes
-                mathAttrs[.font] = theme.typography.codeBlock.font
-                result.append(NSAttributedString(string: math.equation, attributes: mathAttrs))
-                #endif
+                result.append(MathAttachmentBuilder.buildSync(from: math, theme: theme))
             default:
                 break
             }
@@ -418,23 +360,16 @@ struct AttributedStringBuilder {
         paragraphStyle.lineHeightMultiple = token.lineHeightMultiple
         paragraphStyle.paragraphSpacing = token.paragraphSpacing
         
+        let safeFont = token.font
         return [
-            .font: token.font,
+            .font: safeFont,
             .paragraphStyle: paragraphStyle,
             .foregroundColor: theme.colors.textColor.foreground
         ]
     }
     
     // MARK: - Async Math Helper
-    private func renderMath(latex: String, display: Bool) async -> NativeImage? {
-        return await withCheckedContinuation { continuation in
-            Task { @MainActor in
-                MathRenderer.shared.render(latex: latex, display: display) { image in
-                    continuation.resume(returning: image)
-                }
-            }
-        }
-    }
+
     
     // MARK: - Font Trait Helper
 
@@ -451,11 +386,16 @@ struct AttributedStringBuilder {
         }
         return font
         #elseif canImport(AppKit)
-        let manager = NSFontManager.shared
+        var symbolicTraits = font.fontDescriptor.symbolicTraits
         switch trait {
-        case .bold: return manager.convert(font, toHaveTrait: .boldFontMask)
-        case .italic: return manager.convert(font, toHaveTrait: .italicFontMask)
+        case .bold:
+            symbolicTraits.insert(.bold)
+        case .italic:
+            symbolicTraits.insert(.italic)
         }
+        
+        let descriptor = font.fontDescriptor.withSymbolicTraits(symbolicTraits)
+        return Font(descriptor: descriptor, size: font.pointSize) ?? font
         #endif
     }
 
@@ -464,6 +404,9 @@ struct AttributedStringBuilder {
     }
 
     // MARK: - Code Block Helper
+    
+    // Extracted from the dynamic hot path to prevent CoreText cache contention under 8x concurrency scaling.
+    private static nonisolated(unsafe) let rawLabelFont = Font.monospacedSystemFont(ofSize: 11, weight: .semibold)
 
     func buildCodeBlockAttributedString(from code: CodeBlockNode) -> NSAttributedString {
         let result = NSMutableAttributedString()
@@ -474,7 +417,7 @@ struct AttributedStringBuilder {
             labelStyle.lineHeightMultiple = 1.0
 
             let labelAttrs: [NSAttributedString.Key: Any] = [
-                .font: Font.monospacedSystemFont(ofSize: 11, weight: .semibold),
+                .font: Self.rawLabelFont,
                 .foregroundColor: Color.platformSecondaryLabel,
                 .paragraphStyle: labelStyle
             ]
@@ -603,7 +546,7 @@ struct AttributedStringBuilder {
                 result.append(linkText)
 
             case let image as ImageNode:
-                if let attachment = await buildInlineImageAttachment(from: image, constrainedToWidth: maxWidth) {
+                if let attachment = await ImageAttachmentBuilder.build(from: image, constrainedToWidth: maxWidth) {
                     result.append(attachment)
                 } else {
                     var imgAttrs = baseAttributes
@@ -613,29 +556,7 @@ struct AttributedStringBuilder {
                 }
 
             case let math as MathNode:
-                if let image = await renderMath(latex: math.equation, display: !math.isInline) {
-                    let attachment = NSTextAttachment()
-                    #if canImport(UIKit)
-                    attachment.image = image
-                    #elseif canImport(AppKit)
-                    attachment.image = image
-                    #endif
-
-                    let baseFont = (baseAttributes[.font] as? Font) ?? theme.typography.paragraph.font
-                    attachment.bounds = attachmentBounds(
-                        for: image.size,
-                        isInline: math.isInline,
-                        font: baseFont
-                    )
-                    result.append(NSAttributedString(attachment: attachment))
-                } else {
-                    var mathAttrs = baseAttributes
-                    mathAttrs[.font] = theme.typography.codeBlock.font
-                    mathAttrs[.foregroundColor] = theme.colors.linkColor.foreground
-                    let prefix = math.isInline ? "" : "\n"
-                    let suffix = math.isInline ? "" : "\n"
-                    result.append(NSAttributedString(string: "\(prefix)\(math.equation)\(suffix)", attributes: mathAttrs))
-                }
+                result.append(await MathAttachmentBuilder.build(from: math, theme: theme))
 
             case is EmphasisNode:
                 var italicAttrs = baseAttributes
@@ -682,503 +603,9 @@ struct AttributedStringBuilder {
         return result
     }
 
-    private func buildInlineImageAttachment(
-        from imageNode: ImageNode,
-        constrainedToWidth maxWidth: CGFloat
-    ) async -> NSAttributedString? {
-        guard let source = imageNode.source?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !source.isEmpty,
-              let image = await loadImage(from: source) else {
-            return nil
-        }
 
-        let imageSize = image.size
-        guard imageSize.width > 0, imageSize.height > 0 else { return nil }
 
-        let maxAttachmentWidth = max(80, maxWidth - 24)
-        let scale = min(1.0, maxAttachmentWidth / imageSize.width)
-        let targetSize = CGSize(
-            width: max(1, imageSize.width * scale),
-            height: max(1, imageSize.height * scale)
-        )
 
-        let attachment = NSTextAttachment()
-        #if canImport(UIKit)
-        attachment.image = image
-        #elseif canImport(AppKit)
-        attachment.image = image
-        #endif
-        attachment.bounds = CGRect(origin: .zero, size: targetSize)
-        return NSAttributedString(attachment: attachment)
-    }
 
-    private func loadImage(from source: String) async -> NativeImage? {
-        guard let url = resolvedImageURL(from: source) else { return nil }
-
-        do {
-            let data: Data
-            if url.isFileURL {
-                data = try Data(contentsOf: url)
-            } else {
-                let request = URLRequest(
-                    url: url,
-                    cachePolicy: .returnCacheDataElseLoad,
-                    timeoutInterval: 12.0
-                )
-                let (networkData, response) = try await URLSession.shared.data(for: request)
-                if let http = response as? HTTPURLResponse,
-                   !(200...299).contains(http.statusCode) {
-                    return nil
-                }
-                if let mimeType = response.mimeType?.lowercased(),
-                   !mimeType.hasPrefix("image/") {
-                    return nil
-                }
-                data = networkData
-            }
-
-            guard !data.isEmpty else { return nil }
-            return NativeImage(data: data)
-        } catch {
-            return nil
-        }
-    }
-
-    private func resolvedImageURL(from source: String) -> URL? {
-        let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-
-        if let url = URL(string: trimmed), let scheme = url.scheme, !scheme.isEmpty {
-            return url
-        }
-
-        // If it looks like a URL but failed parsing, do not reinterpret it as a local file path.
-        if trimmed.contains("://") {
-            return nil
-        }
-
-        if trimmed.hasPrefix("~/") {
-            let expandedPath = (trimmed as NSString).expandingTildeInPath
-            return URL(fileURLWithPath: expandedPath)
-        }
-
-        if trimmed.hasPrefix("/") {
-            return URL(fileURLWithPath: trimmed)
-        }
-
-        let cwd = FileManager.default.currentDirectoryPath
-        return URL(fileURLWithPath: cwd).appendingPathComponent(trimmed)
-    }
-
-    private func attachmentBounds(for imageSize: CGSize, isInline: Bool, font: Font) -> CGRect {
-        guard isInline else {
-            return CGRect(origin: .zero, size: imageSize)
-        }
-
-        // Center the attachment against the font's typographic midline.
-        let textMidline = (font.ascender + font.descender) / 2.0
-        let imageMidline = imageSize.height / 2.0
-        let offsetY = textMidline - imageMidline
-
-        return CGRect(x: 0, y: offsetY, width: imageSize.width, height: imageSize.height)
-    }
-
-    // MARK: - Table Helper
-    private func buildTableAttributedString(
-        from table: TableNode,
-        constrainedToWidth maxWidth: CGFloat
-    ) -> NSAttributedString {
-        let allRows = normalizedTableRows(from: table)
-        let columnCount = allRows.map(\.cells.count).max() ?? 0
-        guard columnCount > 0 else { return NSAttributedString() }
-
-        #if canImport(AppKit) && !targetEnvironment(macCatalyst)
-        return buildTableAttributedString_AppKit(
-            allRows: allRows,
-            columnCount: columnCount,
-            table: table,
-            constrainedToWidth: maxWidth
-        )
-        #else
-        return buildTableAttributedString_UIKit(
-            allRows: allRows,
-            columnCount: columnCount,
-            table: table,
-            constrainedToWidth: maxWidth
-        )
-        #endif
-    }
-
-    #if canImport(AppKit) && !targetEnvironment(macCatalyst)
-    private func buildTableAttributedString_AppKit(
-        allRows: [(cells: [String], isHead: Bool)],
-        columnCount: Int,
-        table: TableNode,
-        constrainedToWidth maxWidth: CGFloat
-    ) -> NSAttributedString {
-        let result = NSMutableAttributedString()
-        let cellFont = theme.typography.paragraph.font
-        let headerFont = fontWithTrait(theme.typography.paragraph.font, trait: .bold)
-
-        let textTable = NSTextTable()
-        textTable.numberOfColumns = columnCount
-        textTable.layoutAlgorithm = .automaticLayoutAlgorithm
-        textTable.collapsesBorders = true
-        textTable.hidesEmptyCells = false
-
-        let availableTableWidth = max(160, maxWidth - 16)
-        let perColumnWidth = max(72, floor(availableTableWidth / CGFloat(columnCount)))
-        let horizontalPadding = 16.0
-        let borderAllowance = 2.0
-        let contentWidth = max(48, perColumnWidth - horizontalPadding - borderAllowance)
-
-        var bodyRowIndex = 0
-        for (rowIndex, row) in allRows.enumerated() {
-            let rowBackground = tableRowBackgroundColor(
-                isHeader: row.isHead,
-                bodyRowIndex: bodyRowIndex
-            )
-            if !row.isHead {
-                bodyRowIndex += 1
-            }
-
-            let cells = normalizedCells(for: row.cells, columnCount: columnCount)
-            for columnIndex in 0..<columnCount {
-                let block = configuredTableBlock(
-                    table: textTable,
-                    row: rowIndex,
-                    column: columnIndex,
-                    backgroundColor: rowBackground,
-                    contentWidth: contentWidth
-                )
-
-                let paragraphStyle = NSMutableParagraphStyle()
-                paragraphStyle.textBlocks = [block]
-                paragraphStyle.paragraphSpacing = 0
-                paragraphStyle.paragraphSpacingBefore = 0
-                paragraphStyle.alignment = tableTextAlignment(for: table, column: columnIndex)
-
-                let attrs: [NSAttributedString.Key: Any] = [
-                    .font: row.isHead ? headerFont : cellFont,
-                    .paragraphStyle: paragraphStyle,
-                    .foregroundColor: theme.colors.textColor.foreground
-                ]
-
-                let cellText = cells[columnIndex].isEmpty ? " " : cells[columnIndex]
-                result.append(NSAttributedString(string: cellText, attributes: attrs))
-                result.append(NSAttributedString(string: "\n", attributes: attrs))
-            }
-        }
-
-        return result
-    }
-
-    private func configuredTableBlock(
-        table: NSTextTable,
-        row: Int,
-        column: Int,
-        backgroundColor: Color,
-        contentWidth: CGFloat
-    ) -> NSTextTableBlock {
-        let block = NSTextTableBlock(
-            table: table,
-            startingRow: row,
-            rowSpan: 1,
-            startingColumn: column,
-            columnSpan: 1
-        )
-
-        block.setWidth(1.0, type: .absoluteValueType, for: .border)
-        block.setWidth(8.0, type: .absoluteValueType, for: .padding)
-        block.setWidth(0.0, type: .absoluteValueType, for: .margin)
-        block.setContentWidth(contentWidth, type: .absoluteValueType)
-        block.setBorderColor(theme.colors.tableColor.foreground)
-        block.backgroundColor = backgroundColor
-
-        return block
-    }
-
-    private func tableRowBackgroundColor(isHeader: Bool, bodyRowIndex: Int) -> Color {
-        if isHeader {
-            return theme.colors.tableColor.background
-        }
-
-        // GitHub-like zebra striping: apply subtle shading to every other body row.
-        if bodyRowIndex.isMultiple(of: 2) {
-            return .clear
-        }
-        
-        let bg = theme.colors.tableColor.background
-        var alpha: CGFloat = 1.0
-        bg.usingColorSpace(.deviceRGB)?.getRed(nil, green: nil, blue: nil, alpha: &alpha)
-        return bg.withAlphaComponent(alpha * 0.45)
-    }
-    #endif
-
-    #if canImport(UIKit)
-    /// Builds a table attributed string for iOS using tab stops.
-    ///
-    /// - Note: iOS does not support `NSTextTable`. This implementation uses tab-stop
-    ///   alignment with character-level truncation. For best fidelity, prefer macOS
-    ///   or provide width >= 160pt per column.
-    private func buildTableAttributedString_UIKit(
-        allRows: [(cells: [String], isHead: Bool)],
-        columnCount: Int,
-        table: TableNode,
-        constrainedToWidth maxWidth: CGFloat
-    ) -> NSAttributedString {
-        let result = NSMutableAttributedString()
-        let cellFont = theme.typography.paragraph.font
-        let headerFont = fontWithTrait(theme.typography.paragraph.font, trait: .bold)
-
-        // Calculate column widths using tab stops for alignment.
-        // Reserve 8pt on each side (16pt total) so table content doesn't hug the edges.
-        let horizontalInset: CGFloat = 8
-        let availableWidth = max(160, maxWidth - horizontalInset * 2)
-        let rawColumnWidth = floor(availableWidth / CGFloat(columnCount))
-
-        // If a column gets too narrow, tab-stop rendering becomes unreadable.
-        // Fall back to a plain wrapped row format to preserve legibility.
-        let minimumReadableColumnWidth: CGFloat = 36
-        if rawColumnWidth < minimumReadableColumnWidth {
-            return buildTableAttributedString_UIKitNarrowFallback(
-                allRows: allRows,
-                columnCount: columnCount,
-                horizontalInset: horizontalInset,
-                headerFont: headerFont,
-                cellFont: cellFont
-            )
-        }
-
-        let columnWidth = rawColumnWidth
-        var bodyRowIndex = 0
-
-        for (rowIndex, row) in allRows.enumerated() {
-            let cells = normalizedCells(for: row.cells, columnCount: columnCount)
-            let isLastRow = rowIndex == allRows.count - 1
-            let rowBackground = tableRowBackgroundColorUIKit(
-                isHeader: row.isHead,
-                bodyRowIndex: bodyRowIndex
-            )
-            if !row.isHead {
-                bodyRowIndex += 1
-            }
-
-            // Build tab stops for each column, offset by the horizontal inset
-            var tabStops: [NSTextTab] = []
-            for col in 0..<columnCount {
-                let alignment = tableTextAlignment(for: table, column: col)
-                tabStops.append(NSTextTab(textAlignment: alignment, location: horizontalInset + columnWidth * CGFloat(col)))
-            }
-
-            let paragraphStyle = NSMutableParagraphStyle()
-            paragraphStyle.tabStops = tabStops
-            paragraphStyle.firstLineHeadIndent = horizontalInset
-            paragraphStyle.headIndent = horizontalInset
-            paragraphStyle.alignment = tableTextAlignment(for: table, column: 0)
-            paragraphStyle.lineHeightMultiple = theme.typography.paragraph.lineHeightMultiple
-            paragraphStyle.paragraphSpacing = 2
-
-            let font = row.isHead ? headerFont : cellFont
-            let attrs: [NSAttributedString.Key: Any] = [
-                .font: font,
-                .paragraphStyle: paragraphStyle,
-                .foregroundColor: theme.colors.textColor.foreground,
-                .backgroundColor: rowBackground
-            ]
-
-            // Truncate cells that exceed column width to prevent wrapping chaos
-            let maxCharsPerCell = max(4, Int(columnWidth / 8))
-            let rowText = cells.map { cell -> String in
-                let text = cell.isEmpty ? " " : cell
-                if text.count > maxCharsPerCell {
-                    return String(text.prefix(maxCharsPerCell - 1)) + "\u{2026}"
-                }
-                return text
-            }.joined(separator: "\t")
-            result.append(NSAttributedString(string: rowText, attributes: attrs))
-
-            // Add separator line after header row
-            if row.isHead {
-                let separatorStyle = NSMutableParagraphStyle()
-                separatorStyle.tabStops = tabStops
-                separatorStyle.firstLineHeadIndent = horizontalInset
-                separatorStyle.headIndent = horizontalInset
-                separatorStyle.paragraphSpacing = 2
-
-                let sepAttrs: [NSAttributedString.Key: Any] = [
-                    .font: cellFont,
-                    .paragraphStyle: separatorStyle,
-                    .foregroundColor: theme.colors.tableColor.foreground
-                ]
-
-                let dashes = Array(
-                    repeating: String(repeating: "─", count: max(3, Int(columnWidth / 8))),
-                    count: columnCount
-                )
-                result.append(NSAttributedString(string: "\n" + dashes.joined(separator: "\t"), attributes: sepAttrs))
-            } else if !isLastRow {
-                // Add subtle separators for body rows to improve row boundaries on iOS.
-                let separatorStyle = NSMutableParagraphStyle()
-                separatorStyle.tabStops = tabStops
-                separatorStyle.firstLineHeadIndent = horizontalInset
-                separatorStyle.headIndent = horizontalInset
-                separatorStyle.paragraphSpacing = 2
-
-                let sepAttrs: [NSAttributedString.Key: Any] = [
-                    .font: cellFont,
-                    .paragraphStyle: separatorStyle,
-                    .foregroundColor: theme.colors.tableColor.foreground.withAlphaComponent(0.55)
-                ]
-
-                let dashes = Array(
-                    repeating: String(repeating: "─", count: max(3, Int(columnWidth / 10))),
-                    count: columnCount
-                )
-                result.append(NSAttributedString(string: "\n" + dashes.joined(separator: "\t"), attributes: sepAttrs))
-            }
-
-            if rowIndex < allRows.count - 1 {
-                result.append(NSAttributedString(string: "\n", attributes: attrs))
-            }
-        }
-
-        return result
-    }
-
-    private func tableRowBackgroundColorUIKit(isHeader: Bool, bodyRowIndex: Int) -> Color {
-        if isHeader {
-            return theme.colors.tableColor.background
-        }
-        if bodyRowIndex.isMultiple(of: 2) {
-            return .clear
-        }
-        return theme.colors.tableColor.background.withAlphaComponent(0.45)
-    }
-
-    private func buildTableAttributedString_UIKitNarrowFallback(
-        allRows: [(cells: [String], isHead: Bool)],
-        columnCount: Int,
-        horizontalInset: CGFloat,
-        headerFont: Font,
-        cellFont: Font
-    ) -> NSAttributedString {
-        let result = NSMutableAttributedString()
-
-        let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.firstLineHeadIndent = horizontalInset
-        paragraphStyle.headIndent = horizontalInset
-        paragraphStyle.lineHeightMultiple = theme.typography.paragraph.lineHeightMultiple
-        paragraphStyle.paragraphSpacing = 3
-        paragraphStyle.lineBreakMode = .byWordWrapping
-
-        let maxCharsNarrow = 12
-
-        for (rowIndex, row) in allRows.enumerated() {
-            let cells = normalizedCells(for: row.cells, columnCount: columnCount)
-            let rowText = cells.map { cell -> String in
-                let text = cell.isEmpty ? " " : cell
-                if text.count > maxCharsNarrow {
-                    return String(text.prefix(maxCharsNarrow - 1)) + "\u{2026}"
-                }
-                return text
-            }.joined(separator: "  |  ")
-
-            let attrs: [NSAttributedString.Key: Any] = [
-                .font: row.isHead ? headerFont : cellFont,
-                .paragraphStyle: paragraphStyle,
-                .foregroundColor: theme.colors.textColor.foreground
-            ]
-
-            result.append(NSAttributedString(string: rowText, attributes: attrs))
-
-            if row.isHead {
-                let separator = Array(
-                    repeating: String(repeating: "─", count: 5),
-                    count: columnCount
-                ).joined(separator: "  |  ")
-                let separatorAttrs: [NSAttributedString.Key: Any] = [
-                    .font: cellFont,
-                    .paragraphStyle: paragraphStyle,
-                    .foregroundColor: theme.colors.tableColor.foreground
-                ]
-                result.append(NSAttributedString(string: "\n" + separator, attributes: separatorAttrs))
-            }
-
-            if rowIndex < allRows.count - 1 {
-                result.append(NSAttributedString(string: "\n", attributes: attrs))
-            }
-        }
-
-        return result
-    }
-    #endif
-
-    private func normalizedTableRows(from table: TableNode) -> [(cells: [String], isHead: Bool)] {
-        var rows: [(cells: [String], isHead: Bool)] = []
-
-        for section in table.children {
-            let isHead = section is TableHeadNode
-            let sectionChildren = (section as? TableHeadNode)?.children
-                ?? (section as? TableBodyNode)?.children
-                ?? []
-
-            var directCells: [TableCellNode] = []
-            for child in sectionChildren {
-                if let row = child as? TableRowNode {
-                    let rowCells = row.children.compactMap { $0 as? TableCellNode }
-                    let texts = rowCells.map { tableCellText(from: $0) }
-                    if !texts.isEmpty {
-                        rows.append((cells: texts, isHead: isHead))
-                    }
-                } else if let cell = child as? TableCellNode {
-                    directCells.append(cell)
-                }
-            }
-
-            if !directCells.isEmpty {
-                let texts = directCells.map { tableCellText(from: $0) }
-                rows.append((cells: texts, isHead: isHead))
-            }
-        }
-
-        return rows
-    }
-
-    private func normalizedCells(for cells: [String], columnCount: Int) -> [String] {
-        if cells.count >= columnCount {
-            return Array(cells.prefix(columnCount))
-        }
-        return cells + Array(repeating: "", count: columnCount - cells.count)
-    }
-
-    private func tableCellText(from cell: TableCellNode) -> String {
-        flattenInlineText(from: cell)
-            .replacingOccurrences(of: "\n", with: " ")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private func tableTextAlignment(for table: TableNode, column: Int) -> NSTextAlignment {
-        guard column < table.columnAlignments.count else { return .left }
-        switch table.columnAlignments[column] {
-        case .left: return .left
-        case .center: return .center
-        case .right: return .right
-        case .none: return .left
-        }
-    }
-
-    private func flattenInlineText(from node: MarkdownNode) -> String {
-        switch node {
-        case let text as TextNode:
-            return text.text
-        case let inlineCode as InlineCodeNode:
-            return inlineCode.code
-        case let math as MathNode:
-            return math.equation
-        default:
-            return node.children.map { flattenInlineText(from: $0) }.joined()
-        }
-    }
 
 }
