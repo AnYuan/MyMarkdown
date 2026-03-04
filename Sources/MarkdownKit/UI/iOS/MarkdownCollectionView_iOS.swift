@@ -15,7 +15,8 @@ public protocol MarkdownCollectionViewThemeDelegate: AnyObject {
 public class MarkdownCollectionView: UIView {
     
     public weak var themeDelegate: MarkdownCollectionViewThemeDelegate?
-    
+    public var onToggleDetails: ((Int, DetailsNode) -> Void)?
+
     private let flowLayout = UICollectionViewFlowLayout()
     private lazy var collectionView: UICollectionView = {
         let cv = UICollectionView(frame: .zero, collectionViewLayout: flowLayout)
@@ -52,20 +53,18 @@ public class MarkdownCollectionView: UIView {
         
         // 3. Add to View Hierarchy
         addSubview(collectionView)
+
+        // 4. Observe appearance changes (iOS 17+ replacement for traitCollectionDidChange)
+        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { [weak self] (view: MarkdownCollectionView, _) in
+            self?.themeDelegate?.markdownCollectionViewDidRequestThemeReload(view)
+        }
     }
-    
+
     public override func layoutSubviews() {
         super.layoutSubviews()
         collectionView.frame = bounds
-        // Width dictates text wrapping; when view resizes, 
+        // Width dictates text wrapping; when view resizes,
         // a new background LayoutSolver pass should be triggered externally.
-    }
-    
-    public override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
-        super.traitCollectionDidChange(previousTraitCollection)
-        if traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection) {
-            themeDelegate?.markdownCollectionViewDidRequestThemeReload(self)
-        }
     }
 }
 
