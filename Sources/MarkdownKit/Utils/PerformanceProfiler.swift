@@ -21,7 +21,7 @@ public struct PerformanceProfiler {
     ///   - action: The synchronous block of work to measure.
     /// - Returns: The total time elapsed in milliseconds.
     @discardableResult
-    public static func measure(_ metric: Metric, log: Bool = true, _ action: () throws -> Void) rethrows -> TimeInterval {
+    public static func measure(_ metric: Metric, log: Bool = false, _ action: () throws -> Void) rethrows -> TimeInterval {
         let startTime = CFAbsoluteTimeGetCurrent()
         
         try action()
@@ -38,7 +38,7 @@ public struct PerformanceProfiler {
     
     /// Executes an asynchronous block of code, measures the execution time, and logs the result.
     @discardableResult
-    public static func measureAsync(_ metric: Metric, log: Bool = true, _ action: () async throws -> Void) async rethrows -> TimeInterval {
+    public static func measureAsync(_ metric: Metric, log: Bool = false, _ action: () async throws -> Void) async rethrows -> TimeInterval {
         let startTime = CFAbsoluteTimeGetCurrent()
         
         try await action()
