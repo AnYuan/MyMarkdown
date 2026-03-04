@@ -6,8 +6,8 @@ This document traces the advanced parsing and layout features (defined in Phase 
 | Feature | Status | Covered By Unit/Snapshot Tests |
 | :--- | :---: | :--- |
 | CommonMark Compliance | ✅ | `CommonMarkSpecTests.swift` |
-| Native `NSTextTable` Rendering | ✅ | `SnapshotTests.testTableRendering` |
-| GitHub Table Styling & Alignment | ✅ | `ParserLinkListTableTests.testTableParsingWithAlignments` |
+| Native `NSTextTable` Rendering (macOS) / Tab-stop emulation (iOS) | ✅ | `SnapshotTests.testTableRendering`, `iOSTableLayoutTests` |
+| GitHub Table Styling & Alignment | ✅ | `ParserLinkListTableTests.testTableWithColumnAlignments` |
 | Fenced Math Blocks (````math``) | ✅ | `SnapshotTests.testMathRendering` |
 | Inline Math (`$...$`) | ✅ | `MathExtractionPluginTests.testMathPluginReplacesBlocksAndInlineNodes` |
 | Code Block Badges | ✅ | `SnapshotTests.testCodeBlockRendering` |

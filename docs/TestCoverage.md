@@ -2,25 +2,22 @@
 
 > 最近更新: 2026-03-04
 > 生成方式: `python3 scripts/generate_test_coverage_report.py [--run-tests|--from-log <path>]`
-> 生成时间: 2026-03-04 07:04:04
+> 生成时间: 2026-03-04 10:53:39
 
 ## 1. 总览
 
 | 指标 | 当前值 | 说明 |
 | --- | ---: | --- |
-| 源码文件数 (`Sources/MarkdownKit/*.swift`) | 54 | 不含 Demo target |
-| 测试文件数 (`Tests/MarkdownKitTests/*.swift`) | 48 | 含基准/夹具/辅助文件 |
-| 含 `test*` 方法的测试文件 | 42 | 静态扫描结果 |
-| 静态扫描 `test*` 方法总数 | 273 | 受编译条件影响，可能高于可执行测试数 |
-| 可发现测试数 (`swift test list`) | 218 | 当前平台可执行测试 |
-| 全量执行结果 (`swift test`) | 218 执行 / 0 跳过 / 0 失败 | 当前基线已通过 |
+| 源码文件数 (`Sources/MarkdownKit/*.swift`) | 63 | 不含 Demo target |
+| 测试文件数 (`Tests/MarkdownKitTests/*.swift`) | 50 | 含基准/夹具/辅助文件 |
+| 含 `test*` 方法的测试文件 | 43 | 静态扫描结果 |
+| 静态扫描 `test*` 方法总数 | 278 | 受编译条件影响，可能高于可执行测试数 |
+| 可发现测试数 (`swift test list`) | 223 | 当前平台可执行测试 |
+| 全量执行结果 (`swift test`) | 未提供 | 未执行或未提供日志 |
 
 ## 2. 本次执行状态
 
-- 执行命令: `swift test`
-- 执行: 218
-- 跳过: 0
-- 失败: 0
+- 未提供 `swift test` 执行结果；可用 `--run-tests` 或 `--from-log` 补充。
 
 ## 3. 测试文件明细
 
@@ -47,8 +44,8 @@
 | `EdgeCaseTests.swift` | 13 |
 | `FuzzTests.swift` | 1 |
 | `GitHubAutolinkPluginTests.swift` | 4 |
-| `HighlighterAndProfilerTests.swift` | 7 |
-| `InlineFormattingLayoutTests.swift` | 16 |
+| `HighlighterAndProfilerTests.swift` | 9 |
+| `InlineFormattingLayoutTests.swift` | 17 |
 | `IntegrationPipelineTests.swift` | 10 |
 | `LayoutCacheEdgeCaseTests.swift` | 8 |
 | `LayoutSolverExtendedTests.swift` | 14 |
@@ -57,10 +54,12 @@
 | `MarkdownKitBenchmarkTests.swift` | 4 |
 | `MarkdownKitTests.swift` | 5 |
 | `MathExtractionPluginTests.swift` | 6 |
+| `MathWarningSuppressorTests.swift` | 2 |
 | `MermaidDiagramAdapterTests.swift` | 3 |
 | `NodeModelTests.swift` | 18 |
 | `ParserInlineFormattingTests.swift` | 12 |
 | `ParserLinkListTableTests.swift` | 11 |
+| `SnapshotTestHelper.swift` | 0 |
 | `SnapshotTests.swift` | 4 |
 | `SyntaxMatrixTests.swift` | 1 |
 | `TestHelper.swift` | 0 |
@@ -72,8 +71,8 @@
 | `VirtualizationTests.swift` | 1 |
 | `iOSAccessibilityTests.swift` | 8 |
 | `iOSSnapshotTests.swift` | 6 |
-| `iOSTableLayoutTests.swift` | 7 |
-| `iOSThemeDelegateTests.swift` | 5 |
+| `iOSTableLayoutTests.swift` | 8 |
+| `iOSThemeDelegateTests.swift` | 4 |
 
 ## 4. 辅助/夹具文件（无 `test*` 方法）
 
@@ -82,6 +81,7 @@
 - `BenchmarkRegressionGuard.swift`
 - `BenchmarkReportFormatter.swift`
 - `BenchmarkTieredFixtures.swift`
+- `SnapshotTestHelper.swift`
 - `TestHelper.swift`
 
 ## 5. 建议

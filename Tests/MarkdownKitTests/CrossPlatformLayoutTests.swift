@@ -132,6 +132,21 @@ final class CrossPlatformLayoutTests: XCTestCase {
         }
     }
 
+    func testTableLayoutHandlesLongCellContent() async throws {
+        let markdown = """
+        | Name | Description |
+        |------|-------------|
+        | Alice | This is a very long description that should be handled gracefully on all platforms |
+        """
+        let layout = await TestHelper.solveLayout(markdown, width: 250)
+        let text = layout.children[0].attributedString?.string ?? ""
+
+        // On all platforms, the table should render without crash and contain content
+        XCTAssertGreaterThan(text.count, 0)
+        XCTAssertTrue(text.contains("Name"), "Header content should be present")
+        XCTAssertTrue(text.contains("Alice"), "Body cell content should be present")
+    }
+
     // MARK: - Code block language label uses platformSecondaryLabel
 
     func testCodeBlockLanguageLabelColor() async throws {

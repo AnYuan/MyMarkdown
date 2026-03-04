@@ -26,8 +26,9 @@ This document defines the current thread/actor boundaries for parsing, layout, w
 2. `MathWarningSuppressorTests` validates suppression actor semantics.
 3. `SnapshotTests` and `DiagramSnapshotTests` validate end-to-end rendering stability.
 4. `InlineFormattingLayoutTests` validates math fallback behavior when conversion fails.
+5. `ConcurrencyStressTests` validates multi-task LayoutSolver/LayoutCache safety and parser thread safety.
 
 ## 4. Known Limits
 
 1. `LayoutSolver` and helper types still rely on `@unchecked Sendable` boundaries and require disciplined call-site usage.
-2. Multi-actor stress tests for parser/layout/render interleaving are not yet comprehensive.
+2. Multi-actor stress tests now cover LayoutSolver, LayoutCache, and parser interleaving. Further coverage of MathRenderer and MermaidSnapshotter concurrent usage is deferred.

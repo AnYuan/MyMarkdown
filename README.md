@@ -82,6 +82,14 @@ One-shot full suite (includes all tests, including benchmarks/snapshots):
 bash scripts/verify_all.sh --full
 ```
 
+### Test Split Strategy
+
+The test suite is split into fast regression tests and heavy benchmarks:
+
+- **Fast suite** (`verify_fast.sh`): ~200 tests covering parsing, layout, plugins, security, and snapshot stability. Runs in under 60 seconds. Used as CI gate.
+- **Benchmark suite** (`verify_benchmarks.sh`): Heavy performance regression tests. Run locally or in nightly CI.
+- Running bare `swift test` executes everything including benchmarks. Prefer `verify_fast.sh` for daily iteration.
+
 ## Project Structure
 
 - `Sources/MarkdownKit`: core parser, AST nodes, plugins, layout engine, UI components

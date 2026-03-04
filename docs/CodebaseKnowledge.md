@@ -64,8 +64,8 @@ swift test --filter BenchmarkNodeTypeTests/testDeepBenchmarkFullReport
 
 ### 2.3 Latest observed results
 
-- `swift test list`: **218** discoverable tests
-- `swift test`: **218 executed, 0 failures**
+- `swift test list`: **223** discoverable tests
+- `swift test`: **223 executed, 0 failures**
 - Known noise: deduplicated MathJax warning for `\\binom` may still appear once in benchmark/full runs
 
 ## 3. End-to-End Architecture

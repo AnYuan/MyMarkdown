@@ -61,9 +61,9 @@ final class HighlighterAndProfilerTests: XCTestCase {
         XCTAssertTrue(result.string.contains("hello"))
     }
 
-    func testHighlightFallsBackToPlainForExplicitNonSwiftLanguage() {
+    func testHighlightPythonCodeUsesGenericKeywordHighlighting() {
         let highlighter = SplashHighlighter()
-        let code = "let x = 42\nprint(x)"
+        let code = "def hello():\n    print('world')"
         let result = highlighter.highlight(code, language: "python")
 
         var runCount = 0
@@ -73,7 +73,46 @@ final class HighlighterAndProfilerTests: XCTestCase {
             runCount += 1
         }
 
-        XCTAssertEqual(runCount, 1, "Explicit non-Swift language should avoid Swift tokenization")
+        XCTAssertGreaterThan(runCount, 1,
+            "Python code should have keyword-highlighted attribute runs")
+    }
+
+    func testHighlightUnlabeledCodeDoesNotUseSplash() {
+        let highlighter = SplashHighlighter()
+        let code = "x = 42\nprint(x)"
+        let result = highlighter.highlight(code, language: nil)
+
+        var runCount = 0
+        result.enumerateAttributes(
+            in: NSRange(location: 0, length: result.length)
+        ) { _, _, _ in
+            runCount += 1
+        }
+
+        XCTAssertEqual(runCount, 1,
+            "Unlabeled code should fall back to plain styling")
+    }
+
+    func testSupportedLanguagesProperty() {
+        XCTAssertTrue(SplashHighlighter.supportedLanguages.contains("swift"))
+        XCTAssertTrue(SplashHighlighter.supportedLanguages.contains("python"))
+        XCTAssertTrue(SplashHighlighter.supportedLanguages.contains("javascript"))
+        XCTAssertFalse(SplashHighlighter.supportedLanguages.contains("brainfuck"))
+    }
+
+    func testHighlightUnknownLanguageFallsBackToPlain() {
+        let highlighter = SplashHighlighter()
+        let result = highlighter.highlight("some code", language: "brainfuck")
+
+        var runCount = 0
+        result.enumerateAttributes(
+            in: NSRange(location: 0, length: result.length)
+        ) { _, _, _ in
+            runCount += 1
+        }
+
+        XCTAssertEqual(runCount, 1,
+            "Truly unknown language should use plain styling")
     }
 
     func testHighlightTreatsSwiftLanguageCaseInsensitively() {

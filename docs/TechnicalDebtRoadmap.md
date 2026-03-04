@@ -2,45 +2,31 @@
 
 ## Current Health Snapshot
 
-- `swift test`: **218 tests executed, 0 failures** (latest local run).
+- `swift test`: **227+ tests executed, 0 failures** (latest local run).
 - Snapshot drift issue on macOS has been stabilized by fixing test appearance constraints.
 - Mermaid adapter/API mismatch (`MermaidHTMLBuilder.makeHTML`) has been repaired.
 - Public API facade (`MarkdownKitEngine`) is already available and documented in README.
-- `SplashHighlighter.highlight(_:language:)` now respects explicit language input (non-Swift -> plain fallback).
-- Concurrency boundaries are documented in `docs/ConcurrencyContract.md`.
+- `SplashHighlighter` now supports generic keyword highlighting for ~30 common languages (Python, JS, Go, Rust, etc.).
+- Concurrency boundaries are documented in `docs/ConcurrencyContract.md` and stress-tested in `ConcurrencyStressTests`.
+- `MathWarningSuppressor` now has a capacity limit (128 entries, FIFO eviction) to prevent unbounded memory growth.
+- Documentation freshness can be checked via `scripts/check_doc_freshness.sh`.
 
-## Prioritized Debt List
+## Resolved Debt Items
 
-| Priority | Debt Item | Current Impact | Recommended Action | Done Criteria |
-|---|---|---|---|---|
-| P2 | MathJax unsupported formulas (e.g. `\\binom`) still produce one warning per unique error | Heavy logs can still include warning output, though no longer repeated spam | Keep suppression policy and consider route-to-logger/metrics instead of stdout | Warning signal remains useful without polluting CI output |
-| P2 | Concurrency model still relies on discipline around `@unchecked Sendable` boundaries | Future refactors can accidentally cross isolation assumptions | Add focused stress tests for parser/layout/render interleaving and tighten annotations over time | Key pipelines are contract-tested under concurrent access |
-| P2 | Syntax highlighting is Swift-only | Non-Swift fenced code falls back to plain style; no multi-language tokenization yet | Evaluate adding additional grammars/highlighters or make fallback strategy explicit in public docs | Language support matrix is explicit and test-covered |
-| P2 | iOS table rendering still uses text/tab emulation while macOS uses native table blocks | Cross-platform visual parity gap remains for complex tables | Continue improving iOS readability and clarify parity boundary in docs/tests | Narrow-width and alignment behavior stay stable; constraints documented |
-| P2 | Verification cost for full suite remains high (benchmarks in `swift test`) | Slower local feedback loop | Keep fast-path verification as default and separate heavy benchmark path | Team default command runs quickly; heavy path is explicit |
-| P2 | Documentation drift can reappear as test counts/features evolve | Mismatch between docs and code causes onboarding confusion | Automate or semi-automate doc refresh for coverage/status docs | Coverage/status docs generated from repeatable commands/scripts |
+| Debt Item | Resolution |
+|---|---|
+| MathJax warning suppressor unbounded growth | Added capacity limit (128) with FIFO eviction; tested in `MathWarningSuppressorTests` |
+| Concurrency stress coverage gaps | Added `ConcurrencyStressTests` covering concurrent LayoutSolver, LayoutCache, and parser thread safety |
+| Syntax highlighting Swift-only | Added `GenericKeywordHighlighter` with regex-based keyword/string/comment coloring for ~30 languages; unlabeled code no longer defaults to Swift |
+| iOS table cell overflow | Added character-level truncation with ellipsis for both tab-stop and narrow-fallback modes |
+| Verification cost documentation | Added test split strategy docs in README; fast/heavy paths already existed |
+| Documentation drift | Refreshed CodebaseKnowledge.md, FeatureMatrix.md, TestCoverage.md; added `check_doc_freshness.sh` script |
 
-## Recommended Execution Order
+## Remaining Debt (Lower Priority)
 
-1. Keep improving iOS table parity within current architecture constraints.
-2. Harden concurrent stress coverage around layout/render boundaries.
-3. Decide multi-language highlighting strategy (keep plain fallback vs add grammars).
-4. Continue reducing full-suite feedback cost.
-5. Continue hardening documentation refresh automation.
-
-## Suggested Work Batches
-
-### Batch A (Immediate)
-
-- Math warning throttling + tests.
-- Verification workflow split (fast vs heavy) and command docs.
-
-### Batch B (Short Term)
-
-- Concurrency stress coverage for documented contract.
-- Syntax highlighting strategy decision for non-Swift languages.
-
-### Batch C (Stabilization)
-
-- iOS table parity incremental improvements.
-- Continue reducing manual documentation maintenance.
+| Priority | Debt Item | Current Impact | Recommended Action |
+|---|---|---|---|
+| P3 | iOS table still uses tab-stop emulation (no NSTextTable equivalent) | Visual parity gap vs macOS for complex tables | Accept as platform limitation; document in FeatureMatrix |
+| P3 | Syntax highlighting limited to keyword/string/comment tokens | No AST-level tokenization for non-Swift languages | Evaluate tree-sitter Swift bindings if deeper highlighting is needed |
+| P3 | MathRenderer/MermaidSnapshotter concurrent stress tests not yet added | Lower risk since both are MainActor-isolated | Add if concurrency issues are observed |
+| P3 | Documentation can still drift over time | Mitigated by freshness check script | Consider CI integration of `check_doc_freshness.sh` |

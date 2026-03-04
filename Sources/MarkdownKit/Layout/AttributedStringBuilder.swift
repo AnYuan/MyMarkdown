@@ -724,6 +724,11 @@ struct AttributedStringBuilder {
     #endif
 
     #if canImport(UIKit)
+    /// Builds a table attributed string for iOS using tab stops.
+    ///
+    /// - Note: iOS does not support `NSTextTable`. This implementation uses tab-stop
+    ///   alignment with character-level truncation. For best fidelity, prefer macOS
+    ///   or provide width >= 160pt per column.
     private func buildTableAttributedString_UIKit(
         allRows: [(cells: [String], isHead: Bool)],
         columnCount: Int,
@@ -790,8 +795,15 @@ struct AttributedStringBuilder {
                 .backgroundColor: rowBackground
             ]
 
-            // Join cells with tabs so they snap to the tab stops
-            let rowText = cells.map { $0.isEmpty ? " " : $0 }.joined(separator: "\t")
+            // Truncate cells that exceed column width to prevent wrapping chaos
+            let maxCharsPerCell = max(4, Int(columnWidth / 8))
+            let rowText = cells.map { cell -> String in
+                let text = cell.isEmpty ? " " : cell
+                if text.count > maxCharsPerCell {
+                    return String(text.prefix(maxCharsPerCell - 1)) + "\u{2026}"
+                }
+                return text
+            }.joined(separator: "\t")
             result.append(NSAttributedString(string: rowText, attributes: attrs))
 
             // Add separator line after header row
@@ -868,9 +880,17 @@ struct AttributedStringBuilder {
         paragraphStyle.paragraphSpacing = 3
         paragraphStyle.lineBreakMode = .byWordWrapping
 
+        let maxCharsNarrow = 12
+
         for (rowIndex, row) in allRows.enumerated() {
             let cells = normalizedCells(for: row.cells, columnCount: columnCount)
-            let rowText = cells.map { $0.isEmpty ? " " : $0 }.joined(separator: "  |  ")
+            let rowText = cells.map { cell -> String in
+                let text = cell.isEmpty ? " " : cell
+                if text.count > maxCharsNarrow {
+                    return String(text.prefix(maxCharsNarrow - 1)) + "\u{2026}"
+                }
+                return text
+            }.joined(separator: "  |  ")
 
             let attrs: [NSAttributedString.Key: Any] = [
                 .font: row.isHead ? headerFont : cellFont,

@@ -14,7 +14,7 @@ import os
 /// `AsyncImageView` guarantees this happens 100% on a background queue.
 public class AsyncImageView: UIView {
 
-    private static let logger = Logger(subsystem: "com.markdownkit", category: "AsyncImageView")
+    private nonisolated(unsafe) static let logger = Logger(subsystem: "com.markdownkit", category: "AsyncImageView")
 
     /// When `true` (the default), images are fetched and decoded on a background queue.
     /// Set to `false` to load file-URL images synchronously on the main thread (useful for
