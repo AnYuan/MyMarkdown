@@ -85,18 +85,25 @@ final class LayoutCacheEdgeCaseTests: XCTestCase {
 
     // MARK: - Concurrency
 
-    func testRepeatedCacheAccessDoesNotCrash() {
+    func testRepeatedCacheAccessReturnsCorrectEntries() {
         let cache = LayoutCache()
 
-        // Perform many rapid cache operations to verify stability
+        // Store 100 entries at different widths
+        var nodes: [DocumentNode] = []
         for index in 0..<100 {
             let node = DocumentNode(range: nil, children: [])
+            nodes.append(node)
             let result = LayoutResult(node: node, size: CGSize(width: CGFloat(index), height: 50))
             cache.setLayout(result, constrainedToWidth: CGFloat(index))
-            _ = cache.getLayout(for: node, constrainedToWidth: CGFloat(index))
         }
 
-        // If we get here without crashing, the test passes
+        // Verify a sample of entries are retrievable with correct sizes
+        for index in stride(from: 0, to: 100, by: 10) {
+            let retrieved = cache.getLayout(for: nodes[index], constrainedToWidth: CGFloat(index))
+            XCTAssertNotNil(retrieved, "Cache entry at width \(index) should exist")
+            XCTAssertEqual(retrieved?.size.width, CGFloat(index), "Cached width should match stored width")
+            XCTAssertEqual(retrieved?.size.height, 50, "Cached height should match stored height")
+        }
     }
 
     // MARK: - Multiple Widths

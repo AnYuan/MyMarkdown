@@ -111,10 +111,13 @@ final class LayoutTests: XCTestCase {
                 hasAttachment = true
             }
         }
-        
-        // Because WebKit JS might fail in a headless test suite, we tolerate a fallback, 
-        // but this properly exercises the async actor boundaries.
-        XCTAssertTrue(true, "Async WebKit boundaries exercised without deadlocks.")
+
+        // WebKit JS may fail headless, so accept either an attachment (rendered math)
+        // or fallback text containing the equation.
+        if !hasAttachment {
+            let text = attributedString.string
+            XCTAssertTrue(text.contains("E=mc^2"), "Expected math attachment or fallback equation text, got: \(text)")
+        }
     }
     #endif
 }

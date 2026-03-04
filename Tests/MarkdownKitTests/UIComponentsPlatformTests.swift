@@ -36,7 +36,10 @@ final class UIComponentsPlatformTests: XCTestCase {
 
         let view = AsyncImageView(frame: .zero)
         view.configure(with: layout)
-        // URL(string: "") returns nil, so guard exits — should not crash
+
+        // URL(string: "") returns nil, so guard exits — layer should remain empty
+        XCTAssertEqual(view.frame.size, CGSize(width: 100, height: 50))
+        XCTAssertNil(view.layer.contents, "Invalid URL should not produce any layer contents")
     }
 
     // MARK: - AsyncCodeView

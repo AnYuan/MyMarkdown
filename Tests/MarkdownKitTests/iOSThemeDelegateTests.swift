@@ -40,15 +40,23 @@ final class iOSThemeDelegateTests: XCTestCase {
     }
 
     func testNoDelegateNoCrash() {
-        // No delegate set — the registerForTraitChanges callback should handle nil gracefully
+        // No delegate set — registerForTraitChanges callback should handle nil gracefully
         let view = MarkdownCollectionView(frame: CGRect(x: 0, y: 0, width: 320, height: 480))
         XCTAssertNil(view.themeDelegate)
-        // View initializes without crash even with no delegate
+        // Verify the view fully initialized its subview hierarchy despite no delegate
+        XCTAssertGreaterThan(view.subviews.count, 0, "Collection view should be added as subview during setup")
     }
 
-    func testLayoutsPropertySetter() {
+    func testLayoutsPropertyTriggerReload() {
         let view = MarkdownCollectionView(frame: CGRect(x: 0, y: 0, width: 320, height: 480))
-        // Setting empty layouts should not crash
+
+        // Set non-empty layouts, then verify the property propagated
+        let node = ParagraphNode(range: nil, children: [TextNode(range: nil, text: "test")])
+        let layout = LayoutResult(node: node, size: CGSize(width: 320, height: 40))
+        view.layouts = [layout]
+        XCTAssertEqual(view.layouts.count, 1)
+
+        // Clear and verify
         view.layouts = []
         XCTAssertEqual(view.layouts.count, 0)
     }
