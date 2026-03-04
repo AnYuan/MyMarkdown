@@ -39,30 +39,47 @@ public class MarkdownCollectionViewCell: UICollectionViewCell {
 
     /// Mounts the pre-calculated `LayoutResult` onto the main thread.
     public func configure(with layout: LayoutResult) {
-        // Recycle aggressive purge
-        hostedView?.removeFromSuperview()
-
         switch layout.node {
         case is ImageNode:
-            let imageView = AsyncImageView(frame: CGRect(origin: .zero, size: layout.size))
-            self.contentView.addSubview(imageView)
-            self.hostedView = imageView
-            imageView.configure(with: layout)
+            if let imageView = hostedView as? AsyncImageView {
+                imageView.frame = CGRect(origin: .zero, size: layout.size)
+                imageView.configure(with: layout)
+            } else {
+                hostedView?.removeFromSuperview()
+                let imageView = AsyncImageView(frame: CGRect(origin: .zero, size: layout.size))
+                self.contentView.addSubview(imageView)
+                self.hostedView = imageView
+                imageView.configure(with: layout)
+            }
 
         case is CodeBlockNode, is DiagramNode:
-            let codeView = AsyncCodeView(frame: CGRect(origin: .zero, size: layout.size))
-            self.contentView.addSubview(codeView)
-            self.hostedView = codeView
-            codeView.configure(with: layout)
+            if let codeView = hostedView as? AsyncCodeView {
+                codeView.frame = CGRect(origin: .zero, size: layout.size)
+                codeView.configure(with: layout)
+            } else {
+                hostedView?.removeFromSuperview()
+                let codeView = AsyncCodeView(frame: CGRect(origin: .zero, size: layout.size))
+                self.contentView.addSubview(codeView)
+                self.hostedView = codeView
+                codeView.configure(with: layout)
+            }
 
         default:
             // Text or generic block containers
-            let textView = AsyncTextView(frame: CGRect(origin: .zero, size: layout.size))
-            textView.onLinkTap = onLinkTap
-            textView.onCheckboxToggle = onCheckboxToggle
-            self.contentView.addSubview(textView)
-            self.hostedView = textView
-            textView.configure(with: layout)
+            if let textView = hostedView as? AsyncTextView {
+                textView.frame = CGRect(origin: .zero, size: layout.size)
+                textView.onLinkTap = onLinkTap
+                textView.onCheckboxToggle = onCheckboxToggle
+                textView.configure(with: layout)
+            } else {
+                hostedView?.removeFromSuperview()
+                let textView = AsyncTextView(frame: CGRect(origin: .zero, size: layout.size))
+                textView.onLinkTap = onLinkTap
+                textView.onCheckboxToggle = onCheckboxToggle
+                self.contentView.addSubview(textView)
+                self.hostedView = textView
+                textView.configure(with: layout)
+            }
         }
 
         // Configure Accessibility on the CollectionViewCell itself to allow
