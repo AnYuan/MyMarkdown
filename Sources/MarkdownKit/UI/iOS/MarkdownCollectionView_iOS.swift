@@ -77,11 +77,13 @@ extension MarkdownCollectionView: UICollectionViewDataSource, UICollectionViewDe
     }
     
     public func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
-        let cell = collectionView.dequeueReusableCell(withReuseIdentifier: MarkdownCollectionViewCell.reuseIdentifier, for: indexPath) as! MarkdownCollectionViewCell
-        
+        guard let cell = collectionView.dequeueReusableCell(withReuseIdentifier: MarkdownCollectionViewCell.reuseIdentifier, for: indexPath) as? MarkdownCollectionViewCell else {
+            fatalError("Failed to dequeue MarkdownCollectionViewCell — ensure the cell is registered with reuseIdentifier \(MarkdownCollectionViewCell.reuseIdentifier)")
+        }
+
         let layoutResult = layouts[indexPath.item]
         cell.configure(with: layoutResult)
-        
+
         return cell
     }
     

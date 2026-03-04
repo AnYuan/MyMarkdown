@@ -80,8 +80,10 @@ extension MarkdownCollectionView: NSCollectionViewDataSource, NSCollectionViewDe
     }
     
     public func collectionView(_ collectionView: NSCollectionView, itemForRepresentedObjectAt indexPath: IndexPath) -> NSCollectionViewItem {
-        let item = collectionView.makeItem(withIdentifier: MarkdownItemView.reuseIdentifier, for: indexPath) as! MarkdownItemView
-        
+        guard let item = collectionView.makeItem(withIdentifier: MarkdownItemView.reuseIdentifier, for: indexPath) as? MarkdownItemView else {
+            fatalError("Failed to dequeue MarkdownItemView — ensure the item is registered with identifier \(MarkdownItemView.reuseIdentifier)")
+        }
+
         let layoutResult = layouts[indexPath.item]
         item.configure(
             with: layoutResult,
