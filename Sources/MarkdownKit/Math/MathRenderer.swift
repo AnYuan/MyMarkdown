@@ -73,6 +73,7 @@ public final class MathRenderer: NSObject, WKNavigationDelegate {
 
     private var webView: WKWebView?
     private var isWebViewReady = false
+    private static let maxPendingRenders = 32
     private var pendingRenders: [PendingRender] = []
     private var isProcessingRender = false
 
@@ -110,6 +111,11 @@ public final class MathRenderer: NSObject, WKNavigationDelegate {
                 return
             }
 
+            // Drop oldest pending renders if queue is full to prevent unbounded memory growth
+            while self.pendingRenders.count >= Self.maxPendingRenders {
+                let dropped = self.pendingRenders.removeFirst()
+                dropped.completion(nil)
+            }
             self.pendingRenders.append(PendingRender(svg: svg, completion: completion))
             self.drainRenderQueue()
         }
