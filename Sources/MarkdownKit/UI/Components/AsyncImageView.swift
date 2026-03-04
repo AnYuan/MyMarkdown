@@ -5,6 +5,7 @@
 
 #if canImport(UIKit) && !os(watchOS)
 import UIKit
+import os
 
 /// A Texture-inspired asynchronous native view for rendering Network or Local Images.
 ///
@@ -12,6 +13,8 @@ import UIKit
 /// (converting compressed JPEG/PNG data into uncompressed pixel byte buffers for the GPU).
 /// `AsyncImageView` guarantees this happens 100% on a background queue.
 public class AsyncImageView: UIView {
+
+    private static let logger = Logger(subsystem: "com.markdownkit", category: "AsyncImageView")
 
     /// When `true` (the default), images are fetched and decoded on a background queue.
     /// Set to `false` to load file-URL images synchronously on the main thread (useful for
@@ -103,7 +106,7 @@ public class AsyncImageView: UIView {
                     data = networkData
                 }
             } catch {
-                print("Failed to load image data for \(url): \(error)")
+                Self.logger.error("Failed to load image data for \(url): \(error)")
                 return
             }
 

@@ -1,5 +1,6 @@
 import Foundation
 import WebKit
+import os
 
 #if canImport(UIKit)
 import UIKit
@@ -10,6 +11,8 @@ import AppKit
 /// A pluggable adapter that renders Mermaid diagrams using a lightweight headless WKWebView
 /// and converts them into an NSTextAttachment.
 public struct MermaidDiagramAdapter: DiagramRenderingAdapter {
+
+    static let logger = Logger(subsystem: "com.markdownkit", category: "MermaidDiagram")
 
     public let supportedLanguage: DiagramLanguage = .mermaid
     
@@ -167,7 +170,7 @@ private class MermaidSnapshotter: NSObject, WKNavigationDelegate {
 
         let timeout = DispatchWorkItem { [weak self] in
             if self?.activeRenderToken == renderToken {
-                print("Mermaid WebView rendering timed out")
+                MermaidDiagramAdapter.logger.error("Mermaid WebView rendering timed out")
                 self?.completeCurrentRender(image: nil, token: renderToken)
             }
         }
@@ -218,7 +221,7 @@ private class MermaidSnapshotter: NSObject, WKNavigationDelegate {
             guard let self, let webView else { return }
             
             if let error {
-                print("Mermaid inline JS evaluation error: \(error)")
+                MermaidDiagramAdapter.logger.error("Mermaid inline JS evaluation error: \(error)")
                 self.completeCurrentRender(image: nil)
                 return
             }
@@ -229,7 +232,7 @@ private class MermaidSnapshotter: NSObject, WKNavigationDelegate {
                     self.snapshotRenderedSVG(from: webView)
                 }
             } else {
-                print("Mermaid inline JS failed: \(String(describing: result))")
+                MermaidDiagramAdapter.logger.error("Mermaid inline JS failed: \(String(describing: result))")
                 self.completeCurrentRender(image: nil)
             }
         }
@@ -242,7 +245,7 @@ private class MermaidSnapshotter: NSObject, WKNavigationDelegate {
             webView.evaluateJavaScript(scriptSource) { [weak self] _, error in
                 guard let self else { return }
                 if let error {
-                    print("Failed to initialize mermaid JS bundle: \(error)")
+                    MermaidDiagramAdapter.logger.error("Failed to initialize mermaid JS bundle: \(error)")
                 } else {
                     self.isWebViewReady = true
                     // Process any queued items
@@ -256,7 +259,7 @@ private class MermaidSnapshotter: NSObject, WKNavigationDelegate {
                 }
             }
         } else {
-            print("Could not load Mermaid script source")
+            MermaidDiagramAdapter.logger.error("Could not load Mermaid script source")
         }
     }
 
@@ -265,7 +268,7 @@ private class MermaidSnapshotter: NSObject, WKNavigationDelegate {
         didFail navigation: WKNavigation!,
         withError error: Error
     ) {
-        print("Mermaid WebView failed navigation: \(error)")
+        MermaidDiagramAdapter.logger.error("Mermaid WebView failed navigation: \(error)")
         completeCurrentRender(image: nil)
     }
 
@@ -274,7 +277,7 @@ private class MermaidSnapshotter: NSObject, WKNavigationDelegate {
         didFailProvisionalNavigation navigation: WKNavigation!,
         withError error: Error
     ) {
-        print("Mermaid WebView failed provisional navigation: \(error)")
+        MermaidDiagramAdapter.logger.error("Mermaid WebView failed provisional navigation: \(error)")
         completeCurrentRender(image: nil)
     }
 
@@ -299,7 +302,7 @@ private class MermaidSnapshotter: NSObject, WKNavigationDelegate {
             guard let self, let webView else { return }
 
             if let error = error {
-                print("Mermaid JS evaluation error: \(error)")
+                MermaidDiagramAdapter.logger.error("Mermaid JS evaluation error: \(error)")
                 self.completeCurrentRender(image: nil)
                 return
             }
@@ -307,7 +310,7 @@ private class MermaidSnapshotter: NSObject, WKNavigationDelegate {
             guard let dimensions = result as? [String: Any],
                   let width = dimensions["width"] as? Double,
                   let height = dimensions["height"] as? Double else {
-                print("Mermaid JS evaluation returned invalid result: \(String(describing: result))")
+                MermaidDiagramAdapter.logger.error("Mermaid JS evaluation returned invalid result: \(String(describing: result))")
                 self.completeCurrentRender(image: nil)
                 return
             }

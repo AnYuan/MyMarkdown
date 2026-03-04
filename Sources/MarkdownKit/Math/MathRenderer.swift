@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import os
 
 #if canImport(WebKit)
 import WebKit
@@ -34,6 +35,8 @@ actor MathWarningSuppressor {
 public final class MathRenderer: NSObject, WKNavigationDelegate {
 
     public static let shared = MathRenderer()
+
+    private static let logger = Logger(subsystem: "com.markdownkit", category: "MathRenderer")
 
     private struct PendingRender {
         let svg: String
@@ -101,7 +104,7 @@ public final class MathRenderer: NSObject, WKNavigationDelegate {
             } catch {
                 let errorMessage = String(describing: error)
                 if await warningSuppressor.shouldLog(errorMessage) {
-                    print("MathJaxSwift conversion failed: \(errorMessage)")
+                    Self.logger.error("MathJaxSwift conversion failed: \(errorMessage)")
                 }
                 completion(nil)
                 return

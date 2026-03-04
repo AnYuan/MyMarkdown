@@ -1,8 +1,11 @@
 import Foundation
+import os
 
 /// A utility to meticulously measure the performance metrics of the Markdown renderer.
 public struct PerformanceProfiler {
-    
+
+    private static let logger = Logger(subsystem: "com.markdownkit", category: "Performance")
+
     public enum Metric: String {
         case astParsing = "AST Parsing"
         case layoutCalculation = "Layout Calculation"
@@ -27,7 +30,7 @@ public struct PerformanceProfiler {
         let elapsedMilliseconds = (endTime - startTime) * 1000
         
         if log {
-            print("[\(metric.rawValue)] Executed in: \(String(format: "%.2f", elapsedMilliseconds)) ms")
+            logger.debug("[\(metric.rawValue)] Executed in: \(String(format: "%.2f", elapsedMilliseconds)) ms")
         }
         
         return elapsedMilliseconds
@@ -44,7 +47,7 @@ public struct PerformanceProfiler {
         let elapsedMilliseconds = (endTime - startTime) * 1000
         
         if log {
-            print("[\(metric.rawValue)] Executed in: \(String(format: "%.2f", elapsedMilliseconds)) ms")
+            logger.debug("[\(metric.rawValue)] Executed in: \(String(format: "%.2f", elapsedMilliseconds)) ms")
         }
         
         return elapsedMilliseconds
