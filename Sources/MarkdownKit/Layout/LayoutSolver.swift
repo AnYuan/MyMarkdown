@@ -46,13 +46,21 @@ public final class LayoutSolver: @unchecked Sendable {
     /// Runs the async solve on a background thread and blocks the caller until complete.
     /// Prefer the async version when possible.
     public func solveSync(node: MarkdownNode, constrainedToWidth maxWidth: CGFloat) -> LayoutResult {
+        // Must run on a background queue to avoid deadlock: solve() uses Task.yield()
+        // which requires the cooperative thread pool, and semaphore.wait() on the main
+        // thread would block that pool from making progress.
         let semaphore = DispatchSemaphore(value: 0)
         let resultBox = SendableBox<LayoutResult>()
         let nodeBox = SendableBox(node)
-        Task.detached { [self, resultBox, nodeBox] in
-            if let n = nodeBox.value {
-                resultBox.value = await self.solve(node: n, constrainedToWidth: maxWidth)
+        DispatchQueue.global(qos: .userInitiated).async {
+            let innerSemaphore = DispatchSemaphore(value: 0)
+            Task { [self, resultBox, nodeBox] in
+                if let n = nodeBox.value {
+                    resultBox.value = await self.solve(node: n, constrainedToWidth: maxWidth)
+                }
+                innerSemaphore.signal()
             }
+            innerSemaphore.wait()
             semaphore.signal()
         }
         semaphore.wait()
