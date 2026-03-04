@@ -45,26 +45,50 @@ public final class LayoutSolver: @unchecked Sendable {
     ///
     /// Runs the async solve on a background thread and blocks the caller until complete.
     /// Prefer the async version when possible.
+    /// Fully synchronous solve — no Swift concurrency, no semaphores.
+    ///
+    /// Directly builds attributed strings and measures sizes on the calling thread.
+    /// Math and diagram nodes are skipped (they require async rendering).
+    /// Use this for SwiftUI @ViewBuilder contexts where await is not possible.
     public func solveSync(node: MarkdownNode, constrainedToWidth maxWidth: CGFloat) -> LayoutResult {
-        // Must run on a background queue to avoid deadlock: solve() uses Task.yield()
-        // which requires the cooperative thread pool, and semaphore.wait() on the main
-        // thread would block that pool from making progress.
-        let semaphore = DispatchSemaphore(value: 0)
-        let resultBox = SendableBox<LayoutResult>()
-        let nodeBox = SendableBox(node)
-        DispatchQueue.global(qos: .userInitiated).async {
-            let innerSemaphore = DispatchSemaphore(value: 0)
-            Task { [self, resultBox, nodeBox] in
-                if let n = nodeBox.value {
-                    resultBox.value = await self.solve(node: n, constrainedToWidth: maxWidth)
-                }
-                innerSemaphore.signal()
-            }
-            innerSemaphore.wait()
-            semaphore.signal()
+        if let cached = cache.getLayout(for: node, constrainedToWidth: maxWidth) {
+            return cached
         }
-        semaphore.wait()
-        return resultBox.value!
+
+        // Build attributed string synchronously (skips math/diagram rendering)
+        let styledString = builder.buildStringSync(for: node, constrainedToWidth: maxWidth)
+
+        // Measure size
+        var size: CGSize
+        if let code = node as? CodeBlockNode {
+            let codeAttr = builder.buildCodeBlockAttributedString(from: code)
+            let insets = CGSize(width: 16, height: 16)
+            size = textCalculator.calculateSize(
+                for: codeAttr,
+                constrainedToWidth: max(0, maxWidth - insets.width)
+            )
+            size.width += insets.width
+            size.height += insets.height
+        } else {
+            size = textCalculator.calculateSize(for: styledString, constrainedToWidth: maxWidth)
+        }
+
+        // Recurse children for DocumentNode
+        var childLayouts: [LayoutResult] = []
+        if let doc = node as? DocumentNode {
+            for child in doc.children {
+                childLayouts.append(solveSync(node: child, constrainedToWidth: maxWidth))
+            }
+        }
+
+        let result = LayoutResult(
+            node: node,
+            size: size,
+            attributedString: styledString,
+            children: childLayouts
+        )
+        cache.setLayout(result, constrainedToWidth: maxWidth)
+        return result
     }
 
     /// Recursively calculates the layout for a node and all its children.

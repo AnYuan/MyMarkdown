@@ -212,7 +212,168 @@ struct AttributedStringBuilder {
         
         return string
     }
-    
+
+    // MARK: - Synchronous Build (no Swift concurrency)
+
+    /// Builds an attributed string synchronously, without any async calls.
+    /// Math nodes render as fallback text, images render as alt text, diagrams are skipped.
+    func buildStringSync(for node: MarkdownNode, constrainedToWidth maxWidth: CGFloat) -> NSAttributedString {
+        let string = NSMutableAttributedString()
+
+        switch node {
+        case let table as TableNode:
+            string.append(buildTableAttributedString(from: table, constrainedToWidth: maxWidth))
+
+        case let header as HeaderNode:
+            let token = themeToken(forHeaderLevel: header.level)
+            let baseAttrs = defaultAttributes(for: token)
+            string.append(buildInlineAttributedStringSync(from: header.children, baseAttributes: baseAttrs))
+
+        case let text as TextNode:
+            let attributes = defaultAttributes(for: theme.typography.paragraph)
+            string.append(NSAttributedString(string: text.text, attributes: attributes))
+
+        case let math as MathNode:
+            // Sync fallback: render formula as monospaced text
+            let attr = defaultAttributes(for: theme.typography.codeBlock)
+            string.append(NSAttributedString(string: math.equation, attributes: attr))
+
+        case let paragraph as ParagraphNode:
+            let baseAttrs = defaultAttributes(for: theme.typography.paragraph)
+            string.append(buildInlineAttributedStringSync(from: paragraph.children, baseAttributes: baseAttrs))
+
+        case let code as CodeBlockNode:
+            string.append(buildCodeBlockAttributedString(from: code))
+
+        case let list as ListNode:
+            let compactStyle = NSMutableParagraphStyle()
+            compactStyle.lineHeightMultiple = theme.typography.paragraph.lineHeightMultiple
+            compactStyle.paragraphSpacing = 4
+            let listAttrs: [NSAttributedString.Key: Any] = [
+                .font: theme.typography.paragraph.font,
+                .paragraphStyle: compactStyle,
+                .foregroundColor: theme.colors.textColor.foreground
+            ]
+            for (itemIndex, child) in list.children.enumerated() {
+                guard let item = child as? ListItemNode else { continue }
+                if string.length > 0 { string.append(NSAttributedString(string: "\n")) }
+                var prefix: String
+                switch item.checkbox {
+                case .checked: prefix = "☑ "
+                case .unchecked: prefix = "☐ "
+                case .none: prefix = list.isOrdered ? "\(itemIndex + 1). " : "• "
+                }
+                string.append(NSAttributedString(string: prefix, attributes: listAttrs))
+                for itemChild in item.children {
+                    if let para = itemChild as? ParagraphNode {
+                        string.append(buildInlineAttributedStringSync(from: para.children, baseAttributes: listAttrs))
+                    } else if let nestedList = itemChild as? ListNode {
+                        string.append(NSAttributedString(string: "\n"))
+                        let nestedAttr = NSMutableAttributedString(attributedString: buildStringSync(for: nestedList, constrainedToWidth: maxWidth))
+                        let indentStyle = NSMutableParagraphStyle()
+                        indentStyle.headIndent = 20
+                        indentStyle.firstLineHeadIndent = 20
+                        indentStyle.lineHeightMultiple = theme.typography.paragraph.lineHeightMultiple
+                        indentStyle.paragraphSpacing = 4
+                        nestedAttr.addAttribute(.paragraphStyle, value: indentStyle, range: NSRange(location: 0, length: nestedAttr.length))
+                        string.append(nestedAttr)
+                    } else {
+                        string.append(buildStringSync(for: itemChild, constrainedToWidth: maxWidth))
+                    }
+                }
+            }
+
+        case let blockQuote as BlockQuoteNode:
+            let quoteStyle = NSMutableParagraphStyle()
+            quoteStyle.headIndent = 16
+            quoteStyle.firstLineHeadIndent = 16
+            quoteStyle.lineHeightMultiple = theme.typography.paragraph.lineHeightMultiple
+            quoteStyle.paragraphSpacing = theme.typography.paragraph.paragraphSpacing
+            for child in blockQuote.children {
+                if let para = child as? ParagraphNode {
+                    var quoteAttrs = defaultAttributes(for: theme.typography.paragraph)
+                    quoteAttrs[.paragraphStyle] = quoteStyle
+                    quoteAttrs[.foregroundColor] = Color.gray
+                    let bar = NSAttributedString(string: "┃ ", attributes: [
+                        .foregroundColor: Color.systemBlue,
+                        .font: theme.typography.paragraph.font,
+                        .paragraphStyle: quoteStyle
+                    ])
+                    string.append(bar)
+                    string.append(buildInlineAttributedStringSync(from: para.children, baseAttributes: quoteAttrs))
+                } else {
+                    string.append(buildStringSync(for: child, constrainedToWidth: maxWidth))
+                }
+                if string.length > 0 { string.append(NSAttributedString(string: "\n")) }
+            }
+
+        case is ThematicBreakNode:
+            let hrAttrs: [NSAttributedString.Key: Any] = [
+                .font: theme.typography.paragraph.font,
+                .foregroundColor: Color.gray
+            ]
+            string.append(NSAttributedString(string: String(repeating: "─", count: 40), attributes: hrAttrs))
+
+        default:
+            break
+        }
+
+        return string
+    }
+
+    /// Synchronous inline string builder — no async calls.
+    private func buildInlineAttributedStringSync(
+        from children: [MarkdownNode],
+        baseAttributes: [NSAttributedString.Key: Any]
+    ) -> NSAttributedString {
+        let result = NSMutableAttributedString()
+        for child in children {
+            switch child {
+            case let text as TextNode:
+                result.append(NSAttributedString(string: text.text, attributes: baseAttributes))
+            case let code as InlineCodeNode:
+                var codeAttrs = baseAttributes
+                let baseFont = (baseAttributes[.font] as? Font) ?? theme.typography.paragraph.font
+                codeAttrs[.font] = Font.monospacedSystemFont(ofSize: max(11, baseFont.pointSize * 0.92), weight: .regular)
+                codeAttrs[.foregroundColor] = theme.colors.inlineCodeColor.foreground
+                codeAttrs[.backgroundColor] = theme.colors.inlineCodeColor.background
+                result.append(NSAttributedString(string: code.code, attributes: codeAttrs))
+            case let link as LinkNode:
+                var linkAttrs = baseAttributes
+                linkAttrs[.foregroundColor] = Color.systemBlue
+                linkAttrs[.underlineStyle] = NSUnderlineStyle.single.rawValue
+                if let dest = link.destination, let url = URL(string: dest) {
+                    linkAttrs[.link] = url
+                }
+                result.append(buildInlineAttributedStringSync(from: link.children, baseAttributes: linkAttrs))
+            case let emphasis as EmphasisNode:
+                var emAttrs = baseAttributes
+                if let font = emAttrs[.font] as? Font {
+                    emAttrs[.font] = fontWithTrait(font, trait: .italic)
+                }
+                result.append(buildInlineAttributedStringSync(from: emphasis.children, baseAttributes: emAttrs))
+            case let strong as StrongNode:
+                var strongAttrs = baseAttributes
+                if let font = strongAttrs[.font] as? Font {
+                    strongAttrs[.font] = fontWithTrait(font, trait: .bold)
+                }
+                result.append(buildInlineAttributedStringSync(from: strong.children, baseAttributes: strongAttrs))
+            case let strikethrough as StrikethroughNode:
+                var stAttrs = baseAttributes
+                stAttrs[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
+                result.append(buildInlineAttributedStringSync(from: strikethrough.children, baseAttributes: stAttrs))
+            case let math as MathNode:
+                // Sync fallback: render as monospaced text
+                var mathAttrs = baseAttributes
+                mathAttrs[.font] = theme.typography.codeBlock.font
+                result.append(NSAttributedString(string: math.equation, attributes: mathAttrs))
+            default:
+                break
+            }
+        }
+        return result
+    }
+
     private func themeToken(forHeaderLevel level: Int) -> TypographyToken {
         switch level {
         case 1: return theme.typography.header1
