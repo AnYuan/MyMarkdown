@@ -76,7 +76,8 @@ public class AsyncCodeView: UIView {
             self.copyButton.tintColor = .systemGreen
         }
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+            guard let self else { return }
             UIView.animate(withDuration: 0.2) {
                 self.copyButton.setImage(originalImage, for: .normal)
                 self.copyButton.tintColor = .secondaryLabel
