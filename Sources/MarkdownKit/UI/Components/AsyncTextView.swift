@@ -44,6 +44,10 @@ public class AsyncTextView: UIView {
     public private(set) var currentAttributedString: NSAttributedString?
     private var currentSize: CGSize = .zero
 
+    /// Custom CGContext drawing closure from `LayoutResult.customDraw`.
+    /// When set, rasterization uses this instead of TextKit.
+    private var currentCustomDraw: (@Sendable (CGContext, CGSize) -> Void)?
+
     /// Lazily created on first tap. Invalidated on reconfigure.
     private var hitTester: TextKitHitTester?
 
@@ -94,6 +98,34 @@ public class AsyncTextView: UIView {
 
         self.frame.size = layout.size
         self.currentSize = layout.size
+        self.currentCustomDraw = layout.customDraw
+
+        // Custom draw path: bypass TextKit entirely (e.g. table card rendering)
+        if let customDraw = layout.customDraw {
+            self.currentAttributedString = layout.attributedString
+            let size = layout.size
+            let scale = UIScreen.main.scale
+
+            if displaysAsynchronously {
+                currentDrawTask = Task {
+                    let cgImage = await Self.renderImageCustom(
+                        customDraw: customDraw,
+                        size: size,
+                        scale: scale
+                    )
+                    if !Task.isCancelled {
+                        self.layer.contents = cgImage
+                    }
+                }
+            } else {
+                self.layer.contents = Self.renderImageSyncCustom(
+                    customDraw: customDraw,
+                    size: size,
+                    scale: scale
+                )
+            }
+            return
+        }
 
         guard let string = layout.attributedString, string.length > 0 else {
             self.currentAttributedString = nil
@@ -286,6 +318,38 @@ public class AsyncTextView: UIView {
         let glyphRange = layoutManager.glyphRange(for: textContainer)
         layoutManager.drawBackground(forGlyphRange: glyphRange, at: drawRect.origin)
         layoutManager.drawGlyphs(forGlyphRange: glyphRange, at: drawRect.origin)
+    }
+
+    // MARK: - Custom Draw Rendering
+
+    /// Renders synchronously using a custom draw closure.
+    private static func renderImageSyncCustom(
+        customDraw: @Sendable (CGContext, CGSize) -> Void,
+        size: CGSize,
+        scale: CGFloat
+    ) -> CGImage? {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = scale
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
+        let image = renderer.image { rendererContext in
+            customDraw(rendererContext.cgContext, size)
+        }
+        return image.cgImage
+    }
+
+    /// Renders using a custom draw closure on a background executor.
+    private static nonisolated func renderImageCustom(
+        customDraw: @Sendable (CGContext, CGSize) -> Void,
+        size: CGSize,
+        scale: CGFloat
+    ) async -> CGImage? {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = scale
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
+        let image = renderer.image { rendererContext in
+            customDraw(rendererContext.cgContext, size)
+        }
+        return image.cgImage
     }
 }
 #endif
