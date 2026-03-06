@@ -74,15 +74,7 @@ struct AttributedStringBuilder {
             string.append(buildCodeBlockAttributedString(from: code))
             
         case let list as ListNode:
-            let compactStyle = NSMutableParagraphStyle()
-            compactStyle.lineHeightMultiple = theme.typography.paragraph.lineHeightMultiple
-            compactStyle.paragraphSpacing = theme.typography.paragraph.paragraphSpacing
-
-            let listAttrs: [NSAttributedString.Key: Any] = [
-                .font: theme.typography.paragraph.font,
-                .paragraphStyle: compactStyle,
-                .foregroundColor: theme.colors.textColor.foreground
-            ]
+            let font = theme.typography.paragraph.font
 
             for (itemIndex, child) in list.children.enumerated() {
                 guard let item = child as? ListItemNode else { continue }
@@ -95,22 +87,38 @@ struct AttributedStringBuilder {
                 var prefix: String
                 var isCheckbox = false
                 switch item.checkbox {
-                case .checked: 
+                case .checked:
                     prefix = "☑ "
                     isCheckbox = true
-                case .unchecked: 
+                case .unchecked:
                     prefix = "☐ "
                     isCheckbox = true
                 case .none:
                     prefix = list.isOrdered ? "\(itemIndex + 1). " : "• "
                 }
-                
+
+                // Measure prefix width to align continuation lines
+                let prefixWidth = (prefix as NSString).size(withAttributes: [.font: font]).width
+
+                let itemStyle = NSMutableParagraphStyle()
+                itemStyle.lineHeightMultiple = theme.typography.paragraph.lineHeightMultiple
+                itemStyle.paragraphSpacing = theme.typography.paragraph.paragraphSpacing
+                itemStyle.lineBreakMode = .byWordWrapping
+                itemStyle.headIndent = prefixWidth
+                itemStyle.firstLineHeadIndent = 0
+
+                let listAttrs: [NSAttributedString.Key: Any] = [
+                    .font: font,
+                    .paragraphStyle: itemStyle,
+                    .foregroundColor: theme.colors.textColor.foreground
+                ]
+
                 var itemPrefixAttrs = listAttrs
                 if isCheckbox, let range = item.range {
                     let interactionState = CheckboxInteractionData(isChecked: item.checkbox == .checked, range: range)
                     itemPrefixAttrs[.markdownCheckbox] = interactionState
                 }
-                
+
                 string.append(NSAttributedString(string: prefix, attributes: itemPrefixAttrs))
 
                 // Render item content
@@ -124,12 +132,14 @@ struct AttributedStringBuilder {
                     } else if let nestedList = itemChild as? ListNode {
                         let nestedAttr = await buildString(for: nestedList, constrainedToWidth: maxWidth)
                         string.append(NSAttributedString(string: "\n"))
+                        let nestedIndent = prefixWidth + 16
                         let indented = NSMutableAttributedString(attributedString: nestedAttr)
                         let indentStyle = NSMutableParagraphStyle()
-                        indentStyle.headIndent = 20
-                        indentStyle.firstLineHeadIndent = 20
+                        indentStyle.headIndent = nestedIndent
+                        indentStyle.firstLineHeadIndent = nestedIndent - prefixWidth
                         indentStyle.lineHeightMultiple = theme.typography.paragraph.lineHeightMultiple
                         indentStyle.paragraphSpacing = theme.typography.paragraph.paragraphSpacing
+                        indentStyle.lineBreakMode = .byWordWrapping
                         indented.addAttribute(.paragraphStyle, value: indentStyle, range: NSRange(location: 0, length: indented.length))
                         string.append(indented)
                     } else {
@@ -179,11 +189,19 @@ struct AttributedStringBuilder {
             }
 
         case is ThematicBreakNode:
+            // Render as a thin horizontal line using strikethrough on spaces
+            let hrStyle = NSMutableParagraphStyle()
+            hrStyle.paragraphSpacing = theme.typography.paragraph.paragraphSpacing
+            hrStyle.lineBreakMode = .byWordWrapping
             let hrAttrs: [NSAttributedString.Key: Any] = [
-                .font: theme.typography.paragraph.font,
-                .foregroundColor: theme.colors.thematicBreakColor.foreground
+                .font: Font.systemFont(ofSize: 4),
+                .strikethroughStyle: NSUnderlineStyle.single.rawValue,
+                .strikethroughColor: theme.colors.thematicBreakColor.foreground,
+                .foregroundColor: Color.clear,
+                .paragraphStyle: hrStyle
             ]
-            let line = String(repeating: "─", count: 40)
+            // Use enough spaces to fill the width — TextKit will clip to container
+            let line = String(repeating: " ", count: 200)
             string.append(NSAttributedString(string: line, attributes: hrAttrs))
 
         default:
@@ -224,14 +242,7 @@ struct AttributedStringBuilder {
             string.append(buildCodeBlockAttributedString(from: code))
 
         case let list as ListNode:
-            let compactStyle = NSMutableParagraphStyle()
-            compactStyle.lineHeightMultiple = theme.typography.paragraph.lineHeightMultiple
-            compactStyle.paragraphSpacing = theme.typography.paragraph.paragraphSpacing
-            let listAttrs: [NSAttributedString.Key: Any] = [
-                .font: theme.typography.paragraph.font,
-                .paragraphStyle: compactStyle,
-                .foregroundColor: theme.colors.textColor.foreground
-            ]
+            let font = theme.typography.paragraph.font
             for (itemIndex, child) in list.children.enumerated() {
                 guard let item = child as? ListItemNode else { continue }
                 if string.length > 0 { string.append(NSAttributedString(string: "\n")) }
@@ -241,18 +252,32 @@ struct AttributedStringBuilder {
                 case .unchecked: prefix = "☐ "
                 case .none: prefix = list.isOrdered ? "\(itemIndex + 1). " : "• "
                 }
+                let prefixWidth = (prefix as NSString).size(withAttributes: [.font: font]).width
+                let itemStyle = NSMutableParagraphStyle()
+                itemStyle.lineHeightMultiple = theme.typography.paragraph.lineHeightMultiple
+                itemStyle.paragraphSpacing = theme.typography.paragraph.paragraphSpacing
+                itemStyle.lineBreakMode = .byWordWrapping
+                itemStyle.headIndent = prefixWidth
+                itemStyle.firstLineHeadIndent = 0
+                let listAttrs: [NSAttributedString.Key: Any] = [
+                    .font: font,
+                    .paragraphStyle: itemStyle,
+                    .foregroundColor: theme.colors.textColor.foreground
+                ]
                 string.append(NSAttributedString(string: prefix, attributes: listAttrs))
                 for itemChild in item.children {
                     if let para = itemChild as? ParagraphNode {
                         string.append(buildInlineAttributedStringSync(from: para.children, baseAttributes: listAttrs))
                     } else if let nestedList = itemChild as? ListNode {
                         string.append(NSAttributedString(string: "\n"))
+                        let nestedIndent = prefixWidth + 16
                         let nestedAttr = NSMutableAttributedString(attributedString: buildStringSync(for: nestedList, constrainedToWidth: maxWidth))
                         let indentStyle = NSMutableParagraphStyle()
-                        indentStyle.headIndent = 20
-                        indentStyle.firstLineHeadIndent = 20
+                        indentStyle.headIndent = nestedIndent
+                        indentStyle.firstLineHeadIndent = nestedIndent - prefixWidth
                         indentStyle.lineHeightMultiple = theme.typography.paragraph.lineHeightMultiple
                         indentStyle.paragraphSpacing = theme.typography.paragraph.paragraphSpacing
+                        indentStyle.lineBreakMode = .byWordWrapping
                         nestedAttr.addAttribute(.paragraphStyle, value: indentStyle, range: NSRange(location: 0, length: nestedAttr.length))
                         string.append(nestedAttr)
                     } else {
@@ -286,11 +311,17 @@ struct AttributedStringBuilder {
             }
 
         case is ThematicBreakNode:
+            let hrStyle = NSMutableParagraphStyle()
+            hrStyle.paragraphSpacing = theme.typography.paragraph.paragraphSpacing
+            hrStyle.lineBreakMode = .byWordWrapping
             let hrAttrs: [NSAttributedString.Key: Any] = [
-                .font: theme.typography.paragraph.font,
-                .foregroundColor: theme.colors.thematicBreakColor.foreground
+                .font: Font.systemFont(ofSize: 4),
+                .strikethroughStyle: NSUnderlineStyle.single.rawValue,
+                .strikethroughColor: theme.colors.thematicBreakColor.foreground,
+                .foregroundColor: Color.clear,
+                .paragraphStyle: hrStyle
             ]
-            string.append(NSAttributedString(string: String(repeating: "─", count: 40), attributes: hrAttrs))
+            string.append(NSAttributedString(string: String(repeating: " ", count: 200), attributes: hrAttrs))
 
         default:
             break
