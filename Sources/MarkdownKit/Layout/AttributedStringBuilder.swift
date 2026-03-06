@@ -107,7 +107,7 @@ struct AttributedStringBuilder {
                 let itemStyle = NSMutableParagraphStyle()
                 itemStyle.lineHeightMultiple = theme.typography.paragraph.lineHeightMultiple
                 // Use tight spacing between list items; full spacing after the last item for inter-block gap
-                itemStyle.paragraphSpacing = isLastItem ? theme.typography.paragraph.paragraphSpacing : 2
+                itemStyle.paragraphSpacing = isLastItem ? theme.typography.paragraph.paragraphSpacing : 6
                 itemStyle.lineBreakMode = .byWordWrapping
                 itemStyle.headIndent = prefixWidth
                 itemStyle.firstLineHeadIndent = 0
@@ -251,7 +251,7 @@ struct AttributedStringBuilder {
                 let prefixWidth = (prefix as NSString).size(withAttributes: [.font: font]).width
                 let itemStyle = NSMutableParagraphStyle()
                 itemStyle.lineHeightMultiple = theme.typography.paragraph.lineHeightMultiple
-                itemStyle.paragraphSpacing = isLastItem ? theme.typography.paragraph.paragraphSpacing : 2
+                itemStyle.paragraphSpacing = isLastItem ? theme.typography.paragraph.paragraphSpacing : 6
                 itemStyle.lineBreakMode = .byWordWrapping
                 itemStyle.headIndent = prefixWidth
                 itemStyle.firstLineHeadIndent = 0
