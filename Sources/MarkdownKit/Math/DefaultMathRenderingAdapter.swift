@@ -14,7 +14,8 @@ public struct DefaultMathRenderingAdapter: MathRenderingAdapter {
 
     public func render(from node: MathNode, theme: Theme) async -> NSAttributedString {
         #if canImport(WebKit)
-        if let image = await renderMath(latex: node.equation, display: !node.isInline) {
+        let hex = Self.hexColor(theme.colors.textColor.foreground)
+        if let image = await renderMath(latex: node.equation, display: !node.isInline, textColor: hex) {
             return Self.attachmentString(image: image, node: node, theme: theme)
         }
         #endif
@@ -23,7 +24,8 @@ public struct DefaultMathRenderingAdapter: MathRenderingAdapter {
 
     public func renderSync(from node: MathNode, theme: Theme) -> NSAttributedString {
         #if canImport(WebKit)
-        if let image = MathRenderer.cachedImage(for: node.equation) {
+        let hex = Self.hexColor(theme.colors.textColor.foreground)
+        if let image = MathRenderer.cachedImage(for: node.equation, textColor: hex) {
             return Self.attachmentString(image: image, node: node, theme: theme)
         }
         #endif
@@ -49,16 +51,34 @@ public struct DefaultMathRenderingAdapter: MathRenderingAdapter {
     // MARK: - Helpers
 
     #if canImport(WebKit)
-    private func renderMath(latex: String, display: Bool) async -> NativeImage? {
+    private func renderMath(latex: String, display: Bool, textColor: String?) async -> NativeImage? {
         await withCheckedContinuation { continuation in
             Task { @MainActor in
-                MathRenderer.shared.render(latex: latex, display: display) { image in
+                MathRenderer.shared.render(latex: latex, display: display, textColor: textColor) { image in
                     continuation.resume(returning: image)
                 }
             }
         }
     }
     #endif
+
+    /// Converts a native color to a CSS hex string (e.g. "#FFFFFF").
+    static func hexColor(_ color: Color) -> String? {
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        #if canImport(UIKit)
+        guard color.getRed(&red, green: &green, blue: &blue, alpha: &alpha) else { return nil }
+        #elseif canImport(AppKit)
+        guard let rgb = color.usingColorSpace(.sRGB) else { return nil }
+        rgb.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        #endif
+        let r = Int(round(red * 255))
+        let g = Int(round(green * 255))
+        let b = Int(round(blue * 255))
+        return String(format: "#%02X%02X%02X", r, g, b)
+    }
 
     static func attachmentBounds(for imageSize: CGSize, isInline: Bool, font: Font) -> CGRect {
         guard isInline else {

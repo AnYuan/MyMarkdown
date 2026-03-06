@@ -59,6 +59,7 @@ public final class MathRenderer: NSObject, WKNavigationDelegate {
 
     private struct PendingRender {
         let svg: String
+        let textColor: String?
         let completion: (NativeImage?) -> Void
     }
 
@@ -114,16 +115,23 @@ public final class MathRenderer: NSObject, WKNavigationDelegate {
     /// and the sync layout path needs to access it without MainActor.
     private nonisolated(unsafe) static let imageCache = NSCache<NSString, NativeImage>()
 
-    /// Returns a previously rendered image for the given LaTeX, or nil if not cached.
+    /// Returns a previously rendered image for the given LaTeX and optional color, or nil.
     /// Thread-safe (NSCache is internally synchronized). Designed for the sync layout path.
-    public nonisolated static func cachedImage(for latex: String) -> NativeImage? {
-        imageCache.object(forKey: latex as NSString)
+    public nonisolated static func cachedImage(for latex: String, textColor: String? = nil) -> NativeImage? {
+        imageCache.object(forKey: cacheKey(latex: latex, textColor: textColor) as NSString)
     }
 
     /// Clears the rendered image cache. Call when switching color schemes
     /// so formulas re-render with the correct text color.
     public nonisolated static func clearImageCache() {
         imageCache.removeAllObjects()
+    }
+
+    /// Returns a cache key that incorporates the text color so light/dark
+    /// renderings are cached separately.
+    nonisolated static func cacheKey(latex: String, textColor: String?) -> String {
+        guard let textColor else { return latex }
+        return "\(latex)::color=\(textColor)"
     }
 
     private override init() {
@@ -146,15 +154,22 @@ public final class MathRenderer: NSObject, WKNavigationDelegate {
     #endif
 
     func render(svg: String, completion: @escaping (NativeImage?) -> Void) {
-        enqueueRender(svg: svg, cacheKey: nil, completion: completion)
+        enqueueRender(svg: svg, textColor: nil, cacheKey: nil, completion: completion)
     }
 
     /// Converts LaTeX and asynchronously returns a rasterized image.
     /// - Parameters:
     ///   - latex: Raw TeX input.
     ///   - display: `true` for block equation layout, `false` for inline.
+    ///   - textColor: Optional hex color (e.g. "#FFFFFF") for the formula text.
+    ///     When provided, overrides CSS media-query colors via inline style injection.
     ///   - completion: Completion callback returning rendered image or `nil`.
-    public func render(latex: String, display: Bool = false, completion: @escaping (NativeImage?) -> Void) {
+    public func render(
+        latex: String,
+        display: Bool = false,
+        textColor: String? = nil,
+        completion: @escaping (NativeImage?) -> Void
+    ) {
         Task { [weak self] in
             guard let self else {
                 completion(nil)
@@ -173,12 +188,14 @@ public final class MathRenderer: NSObject, WKNavigationDelegate {
                 return
             }
 
-            self.enqueueRender(svg: svg, cacheKey: latex, completion: completion)
+            let key = Self.cacheKey(latex: latex, textColor: textColor)
+            self.enqueueRender(svg: svg, textColor: textColor, cacheKey: key, completion: completion)
         }
     }
 
     private func enqueueRender(
         svg: String,
+        textColor: String?,
         cacheKey: String?,
         completion: @escaping (NativeImage?) -> Void
     ) {
@@ -188,7 +205,7 @@ public final class MathRenderer: NSObject, WKNavigationDelegate {
             dropped.completion(nil)
         }
 
-        pendingRenders.append(PendingRender(svg: svg, completion: { image in
+        pendingRenders.append(PendingRender(svg: svg, textColor: textColor, completion: { image in
             if let image, let cacheKey {
                 MathRenderer.imageCache.setObject(image, forKey: cacheKey as NSString)
             }
@@ -264,7 +281,7 @@ public final class MathRenderer: NSObject, WKNavigationDelegate {
 
         isProcessingRender = true
         let next = pendingRenders.removeFirst()
-        processSVG(next.svg) { [weak self] image in
+        processSVG(next.svg, textColor: next.textColor) { [weak self] image in
             next.completion(image)
             guard let self else { return }
             self.isProcessingRender = false
@@ -272,15 +289,26 @@ public final class MathRenderer: NSObject, WKNavigationDelegate {
         }
     }
 
-    private func processSVG(_ svg: String, completion: @escaping (NativeImage?) -> Void) {
+    private func processSVG(_ svg: String, textColor: String?, completion: @escaping (NativeImage?) -> Void) {
         guard let webView else {
             completion(nil)
             return
         }
 
+        // If an explicit textColor is provided, inject it as an inline style
+        // on :root to override CSS media-query colors. This ensures formulas
+        // render with the correct color in any environment (tests, dark mode, etc.).
+        let colorInjection: String
+        if let textColor {
+            colorInjection = "document.documentElement.style.color = '\(textColor)';"
+        } else {
+            colorInjection = "document.documentElement.style.color = '';"
+        }
+
         let base64SVG = Data(svg.utf8).base64EncodedString()
-        let js = """
+        let script = """
         (function() {
+          \(colorInjection)
           const root = document.getElementById('math-root');
           if (!root) { return null; }
           root.innerHTML = window.atob('\(base64SVG)');
@@ -294,7 +322,7 @@ public final class MathRenderer: NSObject, WKNavigationDelegate {
         })();
         """
 
-        webView.evaluateJavaScript(js) { [weak self] result, error in
+        webView.evaluateJavaScript(script) { [weak self] result, error in
             guard let self else {
                 completion(nil)
                 return
