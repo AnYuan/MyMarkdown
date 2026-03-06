@@ -65,6 +65,18 @@ public final class MathRenderer: NSObject, WKNavigationDelegate {
     private actor Engine {
         private var mathJax: MathJax?
 
+        /// TeX input options with ams package loaded for \frac, \mathbf, \tfrac, etc.
+        private func makeTeXInputOptions() -> TeXInputProcessorOptions {
+            let opts = TeXInputProcessorOptions()
+            opts.loadPackages = [
+                TeXInputProcessorOptions.Packages.base,
+                TeXInputProcessorOptions.Packages.ams,
+                TeXInputProcessorOptions.Packages.newcommand,
+                TeXInputProcessorOptions.Packages.boldsymbol,
+            ]
+            return opts
+        }
+
         func tex2svg(_ latex: String, display: Bool) throws -> String {
             let engine: MathJax
             if let existing = mathJax {
@@ -82,7 +94,8 @@ public final class MathRenderer: NSObject, WKNavigationDelegate {
                 assistiveMml: false,
                 container: false,
                 styles: false,
-                conversionOptions: conversionOptions
+                conversionOptions: conversionOptions,
+                inputOptions: makeTeXInputOptions()
             )
         }
     }
@@ -117,6 +130,10 @@ public final class MathRenderer: NSObject, WKNavigationDelegate {
         drainRenderQueue()
     }
 
+    func render(svg: String, completion: @escaping (NativeImage?) -> Void) {
+        enqueueRender(svg: svg, cacheKey: nil, completion: completion)
+    }
+
     /// Converts LaTeX and asynchronously returns a rasterized image.
     /// - Parameters:
     ///   - latex: Raw TeX input.
@@ -141,20 +158,28 @@ public final class MathRenderer: NSObject, WKNavigationDelegate {
                 return
             }
 
-            // Drop oldest pending renders if queue is full to prevent unbounded memory growth
-            while self.pendingRenders.count >= Self.maxPendingRenders {
-                let dropped = self.pendingRenders.removeFirst()
-                dropped.completion(nil)
-            }
-            let cacheKey = latex
-            self.pendingRenders.append(PendingRender(svg: svg, completion: { image in
-                if let image {
-                    MathRenderer.imageCache.setObject(image, forKey: cacheKey as NSString)
-                }
-                completion(image)
-            }))
-            self.drainRenderQueue()
+            self.enqueueRender(svg: svg, cacheKey: latex, completion: completion)
         }
+    }
+
+    private func enqueueRender(
+        svg: String,
+        cacheKey: String?,
+        completion: @escaping (NativeImage?) -> Void
+    ) {
+        // Drop oldest pending renders if queue is full to prevent unbounded memory growth
+        while pendingRenders.count >= Self.maxPendingRenders {
+            let dropped = pendingRenders.removeFirst()
+            dropped.completion(nil)
+        }
+
+        pendingRenders.append(PendingRender(svg: svg, completion: { image in
+            if let image, let cacheKey {
+                MathRenderer.imageCache.setObject(image, forKey: cacheKey as NSString)
+            }
+            completion(image)
+        }))
+        drainRenderQueue()
     }
 
     private func setupBackgroundWebView() {
@@ -166,6 +191,7 @@ public final class MathRenderer: NSObject, WKNavigationDelegate {
             #if canImport(UIKit)
             webView.isOpaque = false
             webView.backgroundColor = .clear
+            webView.scrollView.backgroundColor = .clear
             #elseif canImport(AppKit)
             webView.setValue(false, forKey: "drawsBackground")
             #endif
@@ -197,13 +223,13 @@ public final class MathRenderer: NSObject, WKNavigationDelegate {
                     margin: 0;
                     padding: 0;
                 }
-                /* Force MathJax output to inherit the text color */
+                /*
+                 Preserve MathJax's per-element fill/stroke attributes.
+                 Forcing `fill` onto every descendant turns `fill="none"`
+                 helper shapes into solid blocks.
+                 */
                 svg {
                     color: inherit;
-                    fill: currentColor;
-                }
-                svg * {
-                    fill: inherit;
                 }
               </style>
             </head>
