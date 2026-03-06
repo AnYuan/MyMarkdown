@@ -361,7 +361,8 @@ struct AttributedStringBuilder {
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.lineHeightMultiple = token.lineHeightMultiple
         paragraphStyle.paragraphSpacing = token.paragraphSpacing
-        
+        paragraphStyle.lineBreakMode = .byWordWrapping
+
         let safeFont = token.font
         return [
             .font: safeFont,
