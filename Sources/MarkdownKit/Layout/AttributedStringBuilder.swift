@@ -76,7 +76,7 @@ struct AttributedStringBuilder {
         case let list as ListNode:
             let compactStyle = NSMutableParagraphStyle()
             compactStyle.lineHeightMultiple = theme.typography.paragraph.lineHeightMultiple
-            compactStyle.paragraphSpacing = 4
+            compactStyle.paragraphSpacing = theme.typography.paragraph.paragraphSpacing
 
             let listAttrs: [NSAttributedString.Key: Any] = [
                 .font: theme.typography.paragraph.font,
@@ -129,7 +129,7 @@ struct AttributedStringBuilder {
                         indentStyle.headIndent = 20
                         indentStyle.firstLineHeadIndent = 20
                         indentStyle.lineHeightMultiple = theme.typography.paragraph.lineHeightMultiple
-                        indentStyle.paragraphSpacing = 4
+                        indentStyle.paragraphSpacing = theme.typography.paragraph.paragraphSpacing
                         indented.addAttribute(.paragraphStyle, value: indentStyle, range: NSRange(location: 0, length: indented.length))
                         string.append(indented)
                     } else {
@@ -226,7 +226,7 @@ struct AttributedStringBuilder {
         case let list as ListNode:
             let compactStyle = NSMutableParagraphStyle()
             compactStyle.lineHeightMultiple = theme.typography.paragraph.lineHeightMultiple
-            compactStyle.paragraphSpacing = 4
+            compactStyle.paragraphSpacing = theme.typography.paragraph.paragraphSpacing
             let listAttrs: [NSAttributedString.Key: Any] = [
                 .font: theme.typography.paragraph.font,
                 .paragraphStyle: compactStyle,
@@ -252,7 +252,7 @@ struct AttributedStringBuilder {
                         indentStyle.headIndent = 20
                         indentStyle.firstLineHeadIndent = 20
                         indentStyle.lineHeightMultiple = theme.typography.paragraph.lineHeightMultiple
-                        indentStyle.paragraphSpacing = 4
+                        indentStyle.paragraphSpacing = theme.typography.paragraph.paragraphSpacing
                         nestedAttr.addAttribute(.paragraphStyle, value: indentStyle, range: NSRange(location: 0, length: nestedAttr.length))
                         string.append(nestedAttr)
                     } else {
