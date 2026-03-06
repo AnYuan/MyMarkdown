@@ -130,6 +130,15 @@ public final class MathRenderer: NSObject, WKNavigationDelegate {
         drainRenderQueue()
     }
 
+    #if canImport(UIKit)
+    /// Sets the WebView's user interface style so SVG rasterization picks up
+    /// the correct `prefers-color-scheme` CSS media query.
+    /// Call from `@MainActor` before rendering for a specific theme.
+    public func setUserInterfaceStyle(_ style: UIUserInterfaceStyle) {
+        webView?.overrideUserInterfaceStyle = style
+    }
+    #endif
+
     func render(svg: String, completion: @escaping (NativeImage?) -> Void) {
         enqueueRender(svg: svg, cacheKey: nil, completion: completion)
     }
