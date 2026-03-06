@@ -66,7 +66,15 @@ public final class LayoutSolver: @unchecked Sendable {
             cache.setLayout(result, constrainedToWidth: maxWidth)
             return result
         }
+
+        // Thematic break: draw a hairline matching legacy DividerAttachment
+        if node is ThematicBreakNode {
+            let result = solveThematicBreak(node: node, constrainedToWidth: maxWidth)
+            cache.setLayout(result, constrainedToWidth: maxWidth)
+            return result
+        }
         #endif
+
 
         // 1. Convert AST to styled NSAttributedString based on Theme
         let styledString: NSAttributedString
@@ -141,6 +149,12 @@ public final class LayoutSolver: @unchecked Sendable {
             cache.setLayout(result, constrainedToWidth: maxWidth)
             return result
         }
+
+        if node is ThematicBreakNode {
+            let result = solveThematicBreak(node: node, constrainedToWidth: maxWidth)
+            cache.setLayout(result, constrainedToWidth: maxWidth)
+            return result
+        }
         #endif
 
         let styledString: NSAttributedString
@@ -176,6 +190,36 @@ public final class LayoutSolver: @unchecked Sendable {
         cache.setLayout(result, constrainedToWidth: maxWidth)
         return result
     }
+
+    // MARK: - Thematic Break Layout (iOS only)
+
+    #if canImport(UIKit) && !os(watchOS)
+    private func solveThematicBreak(node: MarkdownNode, constrainedToWidth maxWidth: CGFloat) -> LayoutResult {
+        let paddingTop: CGFloat = 16
+        let paddingBottom: CGFloat = 24
+        let dividerHeight: CGFloat = 0.5
+        let totalHeight = paddingTop + dividerHeight + paddingBottom
+        let totalSize = CGSize(width: maxWidth, height: totalHeight)
+
+        let resolvedColor = builder.theme.colors.thematicBreakColor.foreground.cgColor
+
+        let customDraw: @Sendable (CGContext, CGSize) -> Void = { context, size in
+            context.saveGState()
+            // Actual hairline
+            context.setFillColor(resolvedColor)
+            context.fill(CGRect(x: 0, y: paddingTop, width: size.width, height: dividerHeight))
+            context.restoreGState()
+        }
+
+        return LayoutResult(
+            node: node,
+            size: totalSize,
+            attributedString: nil,
+            children: [],
+            customDraw: customDraw
+        )
+    }
+    #endif
 
     // MARK: - Table Card Layout (iOS only)
 

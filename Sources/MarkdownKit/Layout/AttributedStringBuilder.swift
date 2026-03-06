@@ -75,9 +75,13 @@ struct AttributedStringBuilder {
             
         case let list as ListNode:
             let font = theme.typography.paragraph.font
+            let listItemCount = list.children.filter { $0 is ListItemNode }.count
+            var currentListItemIndex = 0
 
-            for (itemIndex, child) in list.children.enumerated() {
+            for child in list.children {
                 guard let item = child as? ListItemNode else { continue }
+                currentListItemIndex += 1
+                let isLastItem = currentListItemIndex == listItemCount
 
                 if string.length > 0 {
                     string.append(NSAttributedString(string: "\n"))
@@ -94,7 +98,7 @@ struct AttributedStringBuilder {
                     prefix = "☐ "
                     isCheckbox = true
                 case .none:
-                    prefix = list.isOrdered ? "\(itemIndex + 1). " : "• "
+                    prefix = list.isOrdered ? "\(currentListItemIndex). " : "• "
                 }
 
                 // Measure prefix width to align continuation lines
@@ -102,7 +106,8 @@ struct AttributedStringBuilder {
 
                 let itemStyle = NSMutableParagraphStyle()
                 itemStyle.lineHeightMultiple = theme.typography.paragraph.lineHeightMultiple
-                itemStyle.paragraphSpacing = theme.typography.paragraph.paragraphSpacing
+                // Use tight spacing between list items; full spacing after the last item for inter-block gap
+                itemStyle.paragraphSpacing = isLastItem ? theme.typography.paragraph.paragraphSpacing : 2
                 itemStyle.lineBreakMode = .byWordWrapping
                 itemStyle.headIndent = prefixWidth
                 itemStyle.firstLineHeadIndent = 0
@@ -189,20 +194,7 @@ struct AttributedStringBuilder {
             }
 
         case is ThematicBreakNode:
-            // Render as a thin horizontal line using strikethrough on spaces
-            let hrStyle = NSMutableParagraphStyle()
-            hrStyle.paragraphSpacing = theme.typography.paragraph.paragraphSpacing
-            hrStyle.lineBreakMode = .byWordWrapping
-            let hrAttrs: [NSAttributedString.Key: Any] = [
-                .font: Font.systemFont(ofSize: 4),
-                .strikethroughStyle: NSUnderlineStyle.single.rawValue,
-                .strikethroughColor: theme.colors.thematicBreakColor.foreground,
-                .foregroundColor: Color.clear,
-                .paragraphStyle: hrStyle
-            ]
-            // Use enough spaces to fill the width — TextKit will clip to container
-            let line = String(repeating: " ", count: 200)
-            string.append(NSAttributedString(string: line, attributes: hrAttrs))
+            break // Handled by LayoutSolver via customDraw
 
         default:
             break
@@ -243,19 +235,23 @@ struct AttributedStringBuilder {
 
         case let list as ListNode:
             let font = theme.typography.paragraph.font
-            for (itemIndex, child) in list.children.enumerated() {
+            let listItemCount = list.children.filter { $0 is ListItemNode }.count
+            var currentListItemIndex = 0
+            for child in list.children {
                 guard let item = child as? ListItemNode else { continue }
+                currentListItemIndex += 1
+                let isLastItem = currentListItemIndex == listItemCount
                 if string.length > 0 { string.append(NSAttributedString(string: "\n")) }
                 var prefix: String
                 switch item.checkbox {
                 case .checked: prefix = "☑ "
                 case .unchecked: prefix = "☐ "
-                case .none: prefix = list.isOrdered ? "\(itemIndex + 1). " : "• "
+                case .none: prefix = list.isOrdered ? "\(currentListItemIndex). " : "• "
                 }
                 let prefixWidth = (prefix as NSString).size(withAttributes: [.font: font]).width
                 let itemStyle = NSMutableParagraphStyle()
                 itemStyle.lineHeightMultiple = theme.typography.paragraph.lineHeightMultiple
-                itemStyle.paragraphSpacing = theme.typography.paragraph.paragraphSpacing
+                itemStyle.paragraphSpacing = isLastItem ? theme.typography.paragraph.paragraphSpacing : 2
                 itemStyle.lineBreakMode = .byWordWrapping
                 itemStyle.headIndent = prefixWidth
                 itemStyle.firstLineHeadIndent = 0
@@ -311,17 +307,7 @@ struct AttributedStringBuilder {
             }
 
         case is ThematicBreakNode:
-            let hrStyle = NSMutableParagraphStyle()
-            hrStyle.paragraphSpacing = theme.typography.paragraph.paragraphSpacing
-            hrStyle.lineBreakMode = .byWordWrapping
-            let hrAttrs: [NSAttributedString.Key: Any] = [
-                .font: Font.systemFont(ofSize: 4),
-                .strikethroughStyle: NSUnderlineStyle.single.rawValue,
-                .strikethroughColor: theme.colors.thematicBreakColor.foreground,
-                .foregroundColor: Color.clear,
-                .paragraphStyle: hrStyle
-            ]
-            string.append(NSAttributedString(string: String(repeating: " ", count: 200), attributes: hrAttrs))
+            break // Handled by LayoutSolver via customDraw
 
         default:
             break
