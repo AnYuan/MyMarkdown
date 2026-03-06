@@ -117,6 +117,47 @@ public final class LayoutSolver: @unchecked Sendable {
         
         return result
     }
-    
+
+    /// Synchronous variant of `solve` that avoids Swift concurrency entirely.
+    /// Uses `buildStringSync` (cached math / fallback text, no async rendering).
+    /// Safe to call from the main thread without RunLoop polling.
+    public func solveSync(node: MarkdownNode, constrainedToWidth maxWidth: CGFloat) -> LayoutResult {
+        if let cached = cache.getLayout(for: node, constrainedToWidth: maxWidth) {
+            return cached
+        }
+
+        let styledString: NSAttributedString
+        var size: CGSize
+
+        if let code = node as? CodeBlockNode {
+            styledString = builder.buildCodeBlockAttributedString(from: code)
+            let insets = CGSize(width: 16, height: 16)
+            size = textCalculator.calculateSize(
+                for: styledString,
+                constrainedToWidth: max(0, maxWidth - insets.width)
+            )
+            size.width += insets.width
+            size.height += insets.height
+        } else {
+            styledString = builder.buildStringSync(for: node, constrainedToWidth: maxWidth)
+            size = textCalculator.calculateSize(for: styledString, constrainedToWidth: maxWidth)
+        }
+
+        var childLayouts: [LayoutResult] = []
+        if let doc = node as? DocumentNode {
+            for child in doc.children {
+                childLayouts.append(solveSync(node: child, constrainedToWidth: maxWidth))
+            }
+        }
+
+        let result = LayoutResult(
+            node: node,
+            size: size,
+            attributedString: styledString,
+            children: childLayouts
+        )
+        cache.setLayout(result, constrainedToWidth: maxWidth)
+        return result
+    }
 
 }
