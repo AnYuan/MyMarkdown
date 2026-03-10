@@ -192,7 +192,11 @@ struct AttributedStringBuilder {
             }
 
         case is ThematicBreakNode:
-            break // Handled by LayoutSolver via customDraw
+            #if canImport(UIKit) && !os(watchOS)
+            break // Handled by LayoutSolver via customDraw on iOS
+            #else
+            string.append(buildThematicBreakAttributedString())
+            #endif
 
         default:
             break
@@ -303,7 +307,11 @@ struct AttributedStringBuilder {
             }
 
         case is ThematicBreakNode:
-            break // Handled by LayoutSolver via customDraw
+            #if canImport(UIKit) && !os(watchOS)
+            break // Handled by LayoutSolver via customDraw on iOS
+            #else
+            string.append(buildThematicBreakAttributedString())
+            #endif
 
         default:
             break
@@ -448,6 +456,20 @@ struct AttributedStringBuilder {
         let trimmed = language.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         return trimmed.uppercased()
+    }
+
+    // MARK: - Thematic Break Helper (macOS text fallback)
+
+    private func buildThematicBreakAttributedString() -> NSAttributedString {
+        let rule = String(repeating: "─", count: 40)
+        let style = NSMutableParagraphStyle()
+        style.paragraphSpacing = theme.typography.paragraph.paragraphSpacing
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: theme.typography.paragraph.font,
+            .foregroundColor: theme.colors.thematicBreakColor.foreground,
+            .paragraphStyle: style
+        ]
+        return NSAttributedString(string: rule, attributes: attrs)
     }
 
     // MARK: - Diagram Helper
