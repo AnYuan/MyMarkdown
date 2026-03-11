@@ -13,6 +13,7 @@ public struct MarkdownView: View {
     private let text: String
     private let theme: Theme
     private let plugins: [ASTPlugin]
+    private let diagramRegistry: DiagramAdapterRegistry
     private var linkTapHandler: ((URL) -> Void)?
     private var checkboxToggleHandler: ((CheckboxInteractionData) -> Void)?
 
@@ -23,14 +24,17 @@ public struct MarkdownView: View {
     ///   - text: The Raw Markdown string to render.
     ///   - theme: The visual appearance theme for text and blocks. Defaults to `.default`.
     ///   - plugins: A list of AST plugins to mutate the syntax tree before measuring layout.
+    ///   - diagramRegistry: Host-provided diagram renderers used for diagram code fences.
     public init(
         text: String,
         theme: Theme = .default,
-        plugins: [ASTPlugin] = [DetailsExtractionPlugin(), DiagramExtractionPlugin(), MathExtractionPlugin()]
+        plugins: [ASTPlugin] = [DetailsExtractionPlugin(), DiagramExtractionPlugin(), MathExtractionPlugin()],
+        diagramRegistry: DiagramAdapterRegistry = DiagramAdapterRegistry()
     ) {
         self.text = text
         self.theme = theme
         self.plugins = plugins
+        self.diagramRegistry = diagramRegistry
     }
 
     public var body: some View {
@@ -41,7 +45,8 @@ public struct MarkdownView: View {
                     engine.toggleDetails(
                         at: index,
                         currentlyOpen: details.isOpen,
-                        width: engine.preferredWidth(fallback: geometry.size.width)
+                        width: engine.preferredWidth(fallback: geometry.size.width),
+                        diagramRegistry: diagramRegistry
                     )
                 },
                 onEffectiveContentWidthChange: { newWidth in
@@ -49,7 +54,8 @@ public struct MarkdownView: View {
                         newWidth,
                         markdown: text,
                         plugins: plugins,
-                        theme: theme
+                        theme: theme,
+                        diagramRegistry: diagramRegistry
                     )
                 },
                 onLinkTap: linkTapHandler,
@@ -61,7 +67,8 @@ public struct MarkdownView: View {
                     markdown: newText,
                     plugins: plugins,
                     theme: theme,
-                    fallbackWidth: geometry.size.width
+                    fallbackWidth: geometry.size.width,
+                    diagramRegistry: diagramRegistry
                 )
             }
             .onChange(of: geometry.size.width) { _, newWidth in
@@ -69,7 +76,8 @@ public struct MarkdownView: View {
                     markdown: text,
                     plugins: plugins,
                     theme: theme,
-                    newWidth: newWidth
+                    newWidth: newWidth,
+                    diagramRegistry: diagramRegistry
                 )
             }
         }
@@ -110,14 +118,20 @@ private final class MarkdownEngine: ObservableObject {
         currentWidth > 50 ? currentWidth : fallback
     }
     
-    func render(markdown: String, plugins: [ASTPlugin], theme: Theme, width: CGFloat) {
+    func render(
+        markdown: String,
+        plugins: [ASTPlugin],
+        theme: Theme,
+        width: CGFloat,
+        diagramRegistry: DiagramAdapterRegistry
+    ) {
         guard width > 50 else { return }
 
         currentWidth = width
         renderTask?.cancel()
         renderTask = Task {
             let parser = MarkdownParser(plugins: plugins)
-            let solver = LayoutSolver(theme: theme)
+            let solver = LayoutSolver(theme: theme, diagramRegistry: diagramRegistry)
             let ast = parser.parse(markdown)
             
             // If the task was cancelled while parsing, bail out early
@@ -137,13 +151,26 @@ private final class MarkdownEngine: ObservableObject {
         markdown: String,
         plugins: [ASTPlugin],
         theme: Theme,
-        fallbackWidth: CGFloat
+        fallbackWidth: CGFloat,
+        diagramRegistry: DiagramAdapterRegistry
     ) {
         #if canImport(AppKit) && !targetEnvironment(macCatalyst)
         guard currentWidth > 50 else { return }
-        render(markdown: markdown, plugins: plugins, theme: theme, width: currentWidth)
+        render(
+            markdown: markdown,
+            plugins: plugins,
+            theme: theme,
+            width: currentWidth,
+            diagramRegistry: diagramRegistry
+        )
         #else
-        render(markdown: markdown, plugins: plugins, theme: theme, width: preferredWidth(fallback: fallbackWidth))
+        render(
+            markdown: markdown,
+            plugins: plugins,
+            theme: theme,
+            width: preferredWidth(fallback: fallbackWidth),
+            diagramRegistry: diagramRegistry
+        )
         #endif
     }
 
@@ -151,14 +178,21 @@ private final class MarkdownEngine: ObservableObject {
         markdown: String,
         plugins: [ASTPlugin],
         theme: Theme,
-        newWidth: CGFloat
+        newWidth: CGFloat,
+        diagramRegistry: DiagramAdapterRegistry
     ) {
         #if canImport(AppKit) && !targetEnvironment(macCatalyst)
         // AppKit re-reports the true scroll-content width from the NSView bridge.
         // Rendering here causes a transient first-pass mismatch on startup and resize.
         return
         #else
-        render(markdown: markdown, plugins: plugins, theme: theme, width: preferredWidth(fallback: newWidth))
+        render(
+            markdown: markdown,
+            plugins: plugins,
+            theme: theme,
+            width: preferredWidth(fallback: newWidth),
+            diagramRegistry: diagramRegistry
+        )
         #endif
     }
 
@@ -166,15 +200,27 @@ private final class MarkdownEngine: ObservableObject {
         _ width: CGFloat,
         markdown: String,
         plugins: [ASTPlugin],
-        theme: Theme
+        theme: Theme,
+        diagramRegistry: DiagramAdapterRegistry
     ) {
         guard width > 50 else { return }
         guard abs(width - currentWidth) > 0.5 else { return }
 
-        render(markdown: markdown, plugins: plugins, theme: theme, width: width)
+        render(
+            markdown: markdown,
+            plugins: plugins,
+            theme: theme,
+            width: width,
+            diagramRegistry: diagramRegistry
+        )
     }
     
-    func toggleDetails(at index: Int, currentlyOpen: Bool, width: CGFloat) {
+    func toggleDetails(
+        at index: Int,
+        currentlyOpen: Bool,
+        width: CGFloat,
+        diagramRegistry: DiagramAdapterRegistry
+    ) {
         guard let ast = lastAST, 
               ast.children.indices.contains(index),
               let details = ast.children[index] as? DetailsNode,
@@ -193,7 +239,7 @@ private final class MarkdownEngine: ObservableObject {
         
         renderTask?.cancel()
         renderTask = Task {
-            let solver = LayoutSolver(theme: theme)
+            let solver = LayoutSolver(theme: theme, diagramRegistry: diagramRegistry)
             let result = await solver.solve(node: toggledDocument, constrainedToWidth: resolvedWidth)
             
             if Task.isCancelled { return }

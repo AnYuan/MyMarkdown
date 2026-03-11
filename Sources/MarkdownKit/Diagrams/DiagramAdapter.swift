@@ -7,7 +7,7 @@ public protocol DiagramRenderingAdapter: Sendable {
 /// Registry for host-provided diagram rendering adapters.
 ///
 /// If no adapter exists for a language, renderers should fall back to code-block output.
-public struct DiagramAdapterRegistry {
+public struct DiagramAdapterRegistry: Sendable {
     private var adapters: [DiagramLanguage: any DiagramRenderingAdapter]
 
     public init(adapters: [DiagramLanguage: any DiagramRenderingAdapter] = [:]) {

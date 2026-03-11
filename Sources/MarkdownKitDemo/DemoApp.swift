@@ -8,6 +8,8 @@ import SwiftUI
 import AppKit
 import MarkdownKit
 
+private let demoDiagramRegistry = DemoDiagramAdapters.makeRegistry()
+
 @main
 struct DemoApp: App {
     init() {
@@ -97,7 +99,7 @@ struct ThreePanelView: View {
                     .frame(minWidth: 250)
 
                 // Center: Preview (rendered)
-                MarkdownView(text: editableMarkdown)
+                MarkdownView(text: editableMarkdown, diagramRegistry: demoDiagramRegistry)
                     .id(previewIdentity)
                     .frame(minWidth: 300)
                     .background(Color(NSColor.textBackgroundColor))
