@@ -17,33 +17,37 @@ enum MathAttachmentBuilder {
     /// - Returns: An `NSAttributedString` wrapping an `NSTextAttachment` containing the rasterized SVG.
     static func build(
         from node: MathNode,
-        theme: Theme
+        theme: Theme,
+        contextFont: Font? = nil
     ) async -> NSAttributedString {
+        let effectiveFont = contextFont ?? theme.typography.paragraph.font
         #if canImport(WebKit)
         if let image = await renderMath(latex: node.equation, display: !node.isInline) {
             let attachment = NSTextAttachment()
             attachment.image = image
-            
+
             // Align inline math vertically with surrounding text metrics.
             attachment.bounds = attachmentBounds(
                 for: image.size,
                 isInline: node.isInline,
-                font: theme.typography.paragraph.font
+                font: effectiveFont
             )
             return NSAttributedString(attachment: attachment)
         }
         #endif
-        
+
         // Fallback to raw text if conversion/rasterization fails.
         return fallbackString(for: node, theme: theme)
     }
-    
+
     /// Synchronously builds an attributed string using pre-cached images.
     /// Used by strictly synchronous layout flows.
     static func buildSync(
         from node: MathNode,
-        theme: Theme
+        theme: Theme,
+        contextFont: Font? = nil
     ) -> NSAttributedString {
+        let effectiveFont = contextFont ?? theme.typography.paragraph.font
         #if canImport(WebKit)
         if let image = MathRenderer.cachedImage(for: node.equation) {
             let attachment = NSTextAttachment()
@@ -51,12 +55,12 @@ enum MathAttachmentBuilder {
             attachment.bounds = attachmentBounds(
                 for: image.size,
                 isInline: node.isInline,
-                font: theme.typography.paragraph.font
+                font: effectiveFont
             )
             return NSAttributedString(attachment: attachment)
         }
         #endif
-        
+
         return fallbackString(for: node, theme: theme)
     }
     

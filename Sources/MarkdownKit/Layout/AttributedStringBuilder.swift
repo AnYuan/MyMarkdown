@@ -60,7 +60,7 @@ struct AttributedStringBuilder {
             string.append(NSAttributedString(string: text.text, attributes: attributes))
             
         case let math as MathNode:
-            string.append(await mathAdapter.render(from: math, theme: theme))
+            string.append(await mathAdapter.render(from: math, theme: theme, contextFont: nil))
 
         case let paragraph as ParagraphNode:
             let baseAttrs = defaultAttributes(for: theme.typography.paragraph)
@@ -226,7 +226,7 @@ struct AttributedStringBuilder {
             string.append(NSAttributedString(string: text.text, attributes: attributes))
 
         case let math as MathNode:
-            string.append(mathAdapter.renderSync(from: math, theme: theme))
+            string.append(mathAdapter.renderSync(from: math, theme: theme, contextFont: nil))
 
         case let paragraph as ParagraphNode:
             let baseAttrs = defaultAttributes(for: theme.typography.paragraph)
@@ -362,7 +362,8 @@ struct AttributedStringBuilder {
                 stAttrs[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
                 result.append(buildInlineAttributedStringSync(from: strikethrough.children, baseAttributes: stAttrs))
             case let math as MathNode:
-                result.append(mathAdapter.renderSync(from: math, theme: theme))
+                let contextFont = baseAttributes[.font] as? Font
+                result.append(mathAdapter.renderSync(from: math, theme: theme, contextFont: contextFont))
             default:
                 break
             }
@@ -592,7 +593,8 @@ struct AttributedStringBuilder {
                 }
 
             case let math as MathNode:
-                result.append(await mathAdapter.render(from: math, theme: theme))
+                let contextFont = baseAttributes[.font] as? Font
+                result.append(await mathAdapter.render(from: math, theme: theme, contextFont: contextFont))
 
             case is EmphasisNode:
                 var italicAttrs = baseAttributes

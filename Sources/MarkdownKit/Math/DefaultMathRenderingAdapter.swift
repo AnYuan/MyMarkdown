@@ -21,18 +21,19 @@ public struct DefaultMathRenderingAdapter: MathRenderingAdapter {
 
     // MARK: - MathRenderingAdapter
 
-    public func render(from node: MathNode, theme: Theme) async -> NSAttributedString {
+    public func render(from node: MathNode, theme: Theme, contextFont: Font?) async -> NSAttributedString {
         let hex = Self.hexColor(theme.colors.textColor.foreground)
         let display = !node.isInline
+        let effectiveFont = contextFont ?? theme.typography.paragraph.font
 
         // Check image cache first
-        let imgKey = Self.imageCacheKey(latex: node.equation, display: display, textColor: hex)
+        let imgKey = Self.imageCacheKey(latex: node.equation, display: display, textColor: hex, fontSize: effectiveFont.pointSize)
         if let cached = Self.imageCache.object(forKey: imgKey as NSString) {
-            return Self.attachmentString(image: cached, node: node, theme: theme)
+            return Self.attachmentString(image: cached, node: node, font: effectiveFont)
         }
 
         // Get SVG string (cached or freshly converted)
-        let svgKey = Self.svgCacheKey(latex: node.equation, display: display)
+        let svgKey = Self.svgCacheKey(latex: node.equation, display: display, fontSize: effectiveFont.pointSize)
         let svgString: String
         if let cached = Self.svgCache.object(forKey: svgKey as NSString) {
             svgString = cached as String
@@ -50,36 +51,37 @@ public struct DefaultMathRenderingAdapter: MathRenderingAdapter {
         }
 
         // Pre-process and rasterize via SwiftDraw
-        guard let image = Self.rasterize(svgString: svgString, theme: theme, textColor: hex) else {
+        guard let image = Self.rasterize(svgString: svgString, font: effectiveFont, textColor: hex) else {
             return Self.fallbackString(for: node, theme: theme)
         }
 
         Self.imageCache.setObject(image, forKey: imgKey as NSString)
-        return Self.attachmentString(image: image, node: node, theme: theme)
+        return Self.attachmentString(image: image, node: node, font: effectiveFont)
     }
 
-    public func renderSync(from node: MathNode, theme: Theme) -> NSAttributedString {
+    public func renderSync(from node: MathNode, theme: Theme, contextFont: Font?) -> NSAttributedString {
         let hex = Self.hexColor(theme.colors.textColor.foreground)
         let display = !node.isInline
+        let effectiveFont = contextFont ?? theme.typography.paragraph.font
 
         // Check image cache
-        let imgKey = Self.imageCacheKey(latex: node.equation, display: display, textColor: hex)
+        let imgKey = Self.imageCacheKey(latex: node.equation, display: display, textColor: hex, fontSize: effectiveFont.pointSize)
         if let cached = Self.imageCache.object(forKey: imgKey as NSString) {
-            return Self.attachmentString(image: cached, node: node, theme: theme)
+            return Self.attachmentString(image: cached, node: node, font: effectiveFont)
         }
 
         // If SVG is cached from a prior async render, we can rasterize synchronously
-        let svgKey = Self.svgCacheKey(latex: node.equation, display: display)
+        let svgKey = Self.svgCacheKey(latex: node.equation, display: display, fontSize: effectiveFont.pointSize)
         guard let cachedSVG = Self.svgCache.object(forKey: svgKey as NSString) as String? else {
             return Self.fallbackString(for: node, theme: theme)
         }
 
-        guard let image = Self.rasterize(svgString: cachedSVG, theme: theme, textColor: hex) else {
+        guard let image = Self.rasterize(svgString: cachedSVG, font: effectiveFont, textColor: hex) else {
             return Self.fallbackString(for: node, theme: theme)
         }
 
         Self.imageCache.setObject(image, forKey: imgKey as NSString)
-        return Self.attachmentString(image: image, node: node, theme: theme)
+        return Self.attachmentString(image: image, node: node, font: effectiveFont)
     }
 
     // MARK: - Engine (MathJaxSwift)
@@ -133,12 +135,12 @@ public struct DefaultMathRenderingAdapter: MathRenderingAdapter {
     /// Rendered image cache: keyed by (latex, display, textColor). Color-dependent.
     private nonisolated(unsafe) static let imageCache = NSCache<NSString, NativeImage>()
 
-    private static func svgCacheKey(latex: String, display: Bool) -> String {
-        "\(latex)::display=\(display)"
+    private static func svgCacheKey(latex: String, display: Bool, fontSize: CGFloat) -> String {
+        "\(latex)::display=\(display)::fontSize=\(fontSize)"
     }
 
-    private static func imageCacheKey(latex: String, display: Bool, textColor: String?) -> String {
-        var key = "\(latex)::display=\(display)"
+    private static func imageCacheKey(latex: String, display: Bool, textColor: String?, fontSize: CGFloat) -> String {
+        var key = "\(latex)::display=\(display)::fontSize=\(fontSize)"
         if let textColor { key += "::color=\(textColor)" }
         return key
     }
@@ -147,8 +149,8 @@ public struct DefaultMathRenderingAdapter: MathRenderingAdapter {
 
     /// Pre-processes and rasterizes an SVG string via SwiftDraw.
     /// Returns nil if SVG parsing or rasterization fails.
-    private static func rasterize(svgString: String, theme: Theme, textColor: String?) -> NativeImage? {
-        let fontXHeight = theme.typography.paragraph.font.xHeight
+    private static func rasterize(svgString: String, font: Font, textColor: String?) -> NativeImage? {
+        let fontXHeight = font.xHeight
         let processed = MathSVGPreprocessor.preprocess(
             svg: svgString,
             fontXHeight: fontXHeight,
@@ -163,13 +165,17 @@ public struct DefaultMathRenderingAdapter: MathRenderingAdapter {
         // Scale from viewBox dimensions to exact point dimensions
         svg.size(processed.size)
 
-        return svg.rasterize()
+        let image = svg.rasterize()
+        // SwiftDraw rasterizes at screen scale (2x on Retina), but returns pixel
+        // dimensions as the image size. Set the point size explicitly so the
+        // attachment bounds use the correct logical size.
+        image.size = processed.size
+        return image
     }
 
     // MARK: - Attachment
 
-    private static func attachmentString(image: NativeImage, node: MathNode, theme: Theme) -> NSAttributedString {
-        let font = theme.typography.paragraph.font
+    private static func attachmentString(image: NativeImage, node: MathNode, font: Font) -> NSAttributedString {
         let attachment = NSTextAttachment()
         attachment.image = image
         attachment.bounds = attachmentBounds(for: image.size, isInline: node.isInline, font: font)

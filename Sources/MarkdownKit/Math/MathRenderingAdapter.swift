@@ -7,7 +7,19 @@ import Foundation
 /// implementation; host apps can inject their own adapter via `LayoutSolver.init(mathAdapter:)`.
 public protocol MathRenderingAdapter: Sendable {
     /// Asynchronously renders a math node into an attributed string.
-    func render(from node: MathNode, theme: Theme) async -> NSAttributedString
+    /// - Parameter contextFont: The font of the surrounding text context (e.g. heading font).
+    ///   When `nil`, the adapter should fall back to `theme.typography.paragraph.font`.
+    func render(from node: MathNode, theme: Theme, contextFont: Font?) async -> NSAttributedString
     /// Synchronously renders using cached results. Used by the sync layout path.
-    func renderSync(from node: MathNode, theme: Theme) -> NSAttributedString
+    func renderSync(from node: MathNode, theme: Theme, contextFont: Font?) -> NSAttributedString
+}
+
+// Default implementations for backward compatibility with custom adapters.
+public extension MathRenderingAdapter {
+    func render(from node: MathNode, theme: Theme) async -> NSAttributedString {
+        await render(from: node, theme: theme, contextFont: nil)
+    }
+    func renderSync(from node: MathNode, theme: Theme) -> NSAttributedString {
+        renderSync(from: node, theme: theme, contextFont: nil)
+    }
 }

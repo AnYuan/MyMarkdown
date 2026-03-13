@@ -328,6 +328,10 @@ enum SyntaxPage: String, CaseIterable, Hashable {
 
         case .math:
             return """
+            # Heading with $E = mc^2$ inline
+
+            ## Subheading with $\\alpha + \\beta$ math
+
             Inline math: $E = mc^2$
 
             Block math:
