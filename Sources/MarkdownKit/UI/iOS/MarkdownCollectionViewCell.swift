@@ -22,6 +22,7 @@ public class MarkdownCollectionViewCell: UICollectionViewCell {
     public var onCheckboxToggle: ((CheckboxInteractionData) -> Void)?
     public var onDetailsTap: ((DetailsNode) -> Void)?
     public var theme: Theme = .default
+    public var textInteractionMode: MarkdownTextInteractionMode = .asyncReadOnly
 
     public override func prepareForReuse() {
         super.prepareForReuse()
@@ -67,7 +68,23 @@ public class MarkdownCollectionViewCell: UICollectionViewCell {
 
         default:
             // Text or generic block containers
-            if let textView = hostedView as? AsyncTextView {
+            if shouldUseSelectableTextView(for: layout) {
+                if let textView = hostedView as? SelectableTextView {
+                    textView.frame = CGRect(origin: .zero, size: layout.size)
+                    textView.onLinkTap = onLinkTap
+                    textView.onCheckboxToggle = onCheckboxToggle
+                    textView.configure(with: layout)
+                } else {
+                    hostedView?.removeFromSuperview()
+                    let textView = SelectableTextView(frame: CGRect(origin: .zero, size: layout.size))
+                    textView.isAccessibilityElement = false
+                    textView.onLinkTap = onLinkTap
+                    textView.onCheckboxToggle = onCheckboxToggle
+                    self.contentView.addSubview(textView)
+                    self.hostedView = textView
+                    textView.configure(with: layout)
+                }
+            } else if let textView = hostedView as? AsyncTextView {
                 textView.frame = CGRect(origin: .zero, size: layout.size)
                 textView.theme = theme
                 textView.onLinkTap = onLinkTap
@@ -98,6 +115,12 @@ public class MarkdownCollectionViewCell: UICollectionViewCell {
         if let hint = PlatformAccessibility.accessibilityHint(for: layout) {
             self.accessibilityHint = hint
         }
+    }
+
+    private func shouldUseSelectableTextView(for layout: LayoutResult) -> Bool {
+        textInteractionMode == .selectableNative
+            && layout.customDraw == nil
+            && layout.attributedString?.length ?? 0 > 0
     }
 }
 #endif

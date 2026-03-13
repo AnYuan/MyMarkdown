@@ -12,6 +12,7 @@ struct MarkdownViewRepresentable: UIViewRepresentable {
     var onLinkTap: ((URL) -> Void)?
     var onCheckboxToggle: ((CheckboxInteractionData) -> Void)?
     var theme: Theme = .default
+    var textInteractionMode: MarkdownTextInteractionMode = .asyncReadOnly
 
     func makeUIView(context: Context) -> MarkdownCollectionView {
         let view = MarkdownCollectionView()
@@ -25,6 +26,7 @@ struct MarkdownViewRepresentable: UIViewRepresentable {
         uiView.onToggleDetails = onToggleDetails
         uiView.onLinkTap = onLinkTap
         uiView.onCheckboxToggle = onCheckboxToggle
+        uiView.textInteractionMode = textInteractionMode
     }
 }
 
@@ -39,6 +41,7 @@ struct MarkdownViewRepresentable: NSViewRepresentable {
     var onLinkTap: ((URL) -> Void)?
     var onCheckboxToggle: ((CheckboxInteractionData) -> Void)?
     var theme: Theme = .default
+    var textInteractionMode: MarkdownTextInteractionMode = .asyncReadOnly
 
     func makeNSView(context: Context) -> MarkdownCollectionView {
         let view = MarkdownCollectionView()
@@ -53,6 +56,7 @@ struct MarkdownViewRepresentable: NSViewRepresentable {
         nsView.onEffectiveContentWidthChange = onEffectiveContentWidthChange
         nsView.onLinkTap = onLinkTap
         nsView.onToggleCheckbox = onCheckboxToggle
+        nsView.textInteractionMode = textInteractionMode
     }
 }
 #endif

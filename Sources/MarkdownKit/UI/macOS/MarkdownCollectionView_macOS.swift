@@ -19,6 +19,12 @@ public class MarkdownCollectionView: NSView {
     public var onToggleCheckbox: ((CheckboxInteractionData) -> Void)?
     public var onLinkTap: ((URL) -> Void)?
     public var theme: Theme = .default
+    public var textInteractionMode: MarkdownTextInteractionMode = .asyncReadOnly {
+        didSet {
+            guard oldValue != textInteractionMode else { return }
+            collectionView.reloadData()
+        }
+    }
     var onEffectiveContentWidthChange: ((CGFloat) -> Void)? {
         didSet {
             reportEffectiveContentWidthIfNeeded(force: true)
@@ -111,6 +117,7 @@ extension MarkdownCollectionView: NSCollectionViewDataSource, NSCollectionViewDe
         item.configure(
             with: layoutResult,
             theme: theme,
+            textInteractionMode: textInteractionMode,
             onToggleDetails: { [weak self] details in
                 self?.onToggleDetails?(indexPath.item, details)
             },

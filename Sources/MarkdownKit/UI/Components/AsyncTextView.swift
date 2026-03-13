@@ -354,4 +354,133 @@ public class AsyncTextView: UIView {
         return image.cgImage
     }
 }
+
+/// A read-only native text surface that keeps MarkdownKit styling while enabling
+/// system text selection, copy, and edit-menu behavior.
+public final class SelectableTextView: UITextView {
+
+    public var onLinkTap: ((URL) -> Void)?
+    public var onCheckboxToggle: ((CheckboxInteractionData) -> Void)?
+    public var customInteractiveAttributes: Set<NSAttributedString.Key> = []
+    public var onCustomAttributeTap: ((NSAttributedString.Key, Any) -> Void)?
+
+    public private(set) var currentAttributedString: NSAttributedString?
+
+    private lazy var interactionTapGesture: UITapGestureRecognizer = {
+        let gesture = UITapGestureRecognizer(target: self, action: #selector(handleInteractionTap(_:)))
+        gesture.cancelsTouchesInView = true
+        gesture.delegate = self
+        return gesture
+    }()
+
+    public convenience init(frame: CGRect) {
+        self.init(frame: frame, textContainer: nil)
+    }
+
+    public override init(frame: CGRect, textContainer: NSTextContainer?) {
+        super.init(frame: frame, textContainer: textContainer)
+        setup()
+    }
+
+    public required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        setup()
+    }
+
+    private func setup() {
+        backgroundColor = .clear
+        isEditable = false
+        isSelectable = true
+        isScrollEnabled = false
+        showsVerticalScrollIndicator = false
+        showsHorizontalScrollIndicator = false
+        textContainerInset = .zero
+        textContainer.lineFragmentPadding = 0
+        contentInset = .zero
+        delegate = self
+        addGestureRecognizer(interactionTapGesture)
+    }
+
+    public func configure(with layout: LayoutResult) {
+        frame.size = layout.size
+        textContainer.size = layout.size
+
+        guard let attributedString = layout.attributedString, attributedString.length > 0 else {
+            currentAttributedString = nil
+            attributedText = nil
+            return
+        }
+
+        currentAttributedString = attributedString
+        attributedText = attributedString
+        layoutManager.ensureLayout(for: textContainer)
+    }
+
+    @objc private func handleInteractionTap(_ gesture: UITapGestureRecognizer) {
+        guard gesture.state == .ended else { return }
+        guard let hit = interactionHit(at: gesture.location(in: self)) else { return }
+
+        switch hit {
+        case let .checkbox(data):
+            onCheckboxToggle?(data)
+        case let .customAttribute(key, value):
+            onCustomAttributeTap?(key, value)
+        }
+    }
+
+    private func interactionHit(at point: CGPoint) -> InteractionHit? {
+        guard let attributedString = currentAttributedString, attributedString.length > 0 else { return nil }
+        guard let characterIndex = characterIndex(at: point) else { return nil }
+
+        if let data = attributedString.attribute(.markdownCheckbox, at: characterIndex, effectiveRange: nil) as? CheckboxInteractionData {
+            return .checkbox(data)
+        }
+
+        for key in customInteractiveAttributes {
+            if let value = attributedString.attribute(key, at: characterIndex, effectiveRange: nil) {
+                return .customAttribute(key, value)
+            }
+        }
+
+        return nil
+    }
+
+    private func characterIndex(at point: CGPoint) -> Int? {
+        guard let position = closestPosition(to: point),
+              let textRange = tokenizer.rangeEnclosingPosition(position, with: .character, inDirection: UITextDirection.storage(.forward)) else {
+            return nil
+        }
+
+        let index = offset(from: beginningOfDocument, to: textRange.start)
+        guard let attributedString = currentAttributedString, index >= 0, index < attributedString.length else { return nil }
+        return index
+    }
+
+    private enum InteractionHit {
+        case checkbox(CheckboxInteractionData)
+        case customAttribute(NSAttributedString.Key, Any)
+    }
+}
+
+extension SelectableTextView: UITextViewDelegate {
+    public func textView(
+        _ textView: UITextView,
+        shouldInteractWith url: URL,
+        in characterRange: NSRange,
+        interaction: UITextItemInteraction
+    ) -> Bool {
+        if let onLinkTap {
+            onLinkTap(url)
+            return false
+        }
+
+        return true
+    }
+}
+
+extension SelectableTextView: UIGestureRecognizerDelegate {
+    public func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        interactionHit(at: touch.location(in: self)) != nil
+    }
+}
 #endif

@@ -7,6 +7,14 @@ import UIKit
 import AppKit
 #endif
 
+/// Controls how MarkdownKit renders text-bearing blocks.
+public enum MarkdownTextInteractionMode: Sendable {
+    /// Preserves the existing high-performance async rasterized text path.
+    case asyncReadOnly
+    /// Uses a native text view so users can select text.
+    case selectableNative
+}
+
 /// A cross-platform SwiftUI wrapper for `MarkdownCollectionView`.
 @available(iOS 14.0, macOS 11.0, *)
 public struct MarkdownView: View {
@@ -14,6 +22,7 @@ public struct MarkdownView: View {
     private let theme: Theme
     private let plugins: [ASTPlugin]
     private let diagramRegistry: DiagramAdapterRegistry
+    private var textInteractionMode: MarkdownTextInteractionMode = .asyncReadOnly
     private var linkTapHandler: ((URL) -> Void)?
     private var checkboxToggleHandler: ((CheckboxInteractionData) -> Void)?
 
@@ -60,7 +69,8 @@ public struct MarkdownView: View {
                 },
                 onLinkTap: linkTapHandler,
                 onCheckboxToggle: checkboxToggleHandler,
-                theme: theme
+                theme: theme,
+                textInteractionMode: textInteractionMode
             )
             .onChange(of: text) { _, newText in
                 engine.renderForCurrentPlatform(
@@ -95,6 +105,14 @@ public struct MarkdownView: View {
     public func onCheckboxToggle(_ handler: @escaping (CheckboxInteractionData) -> Void) -> MarkdownView {
         var copy = self
         copy.checkboxToggleHandler = handler
+        return copy
+    }
+
+    /// Selects whether MarkdownKit should keep the async read-only renderer or
+    /// switch to a native selectable text surface for text-bearing blocks.
+    public func textInteractionMode(_ mode: MarkdownTextInteractionMode) -> MarkdownView {
+        var copy = self
+        copy.textInteractionMode = mode
         return copy
     }
 }

@@ -63,6 +63,7 @@ public class MarkdownItemView: NSCollectionViewItem {
 
     private var hostedView: InteractiveTextView?
     var preferredContainerWidth: CGFloat?
+    var textInteractionMode: MarkdownTextInteractionMode = .asyncReadOnly
 
     public override func loadView() {
         self.view = NSView()
@@ -110,12 +111,15 @@ public class MarkdownItemView: NSCollectionViewItem {
     public func configure(
         with layout: LayoutResult,
         theme: Theme = .default,
+        textInteractionMode: MarkdownTextInteractionMode = .asyncReadOnly,
         onToggleDetails: ((DetailsNode) -> Void)? = nil,
         onCheckboxToggle: ((CheckboxInteractionData) -> Void)? = nil,
         onLinkTap: ((URL) -> Void)? = nil
     ) {
         guard let attrString = layout.attributedString, attrString.length > 0,
               let textView = hostedView else { return }
+
+        self.textInteractionMode = textInteractionMode
 
         let containerWidth = preferredContainerWidth
             ?? (view.bounds.width > 0 ? view.bounds.width : layout.size.width)
@@ -135,6 +139,7 @@ public class MarkdownItemView: NSCollectionViewItem {
         
         textView.onCheckboxToggle = onCheckboxToggle
         textView.onLinkTap = onLinkTap
+        textView.isSelectable = textInteractionMode == .selectableNative
 
         if let details = layout.node as? DetailsNode {
             textView.summaryCharacterRange = detailsSummaryRange(in: attrString.string)

@@ -19,6 +19,12 @@ public class MarkdownCollectionView: UIView {
     public var onLinkTap: ((URL) -> Void)?
     public var onCheckboxToggle: ((CheckboxInteractionData) -> Void)?
     public var theme: Theme = .default
+    public var textInteractionMode: MarkdownTextInteractionMode = .asyncReadOnly {
+        didSet {
+            guard oldValue != textInteractionMode else { return }
+            collectionView.reloadData()
+        }
+    }
 
     private let flowLayout = UICollectionViewFlowLayout()
     private lazy var collectionView: UICollectionView = {
@@ -89,6 +95,7 @@ extension MarkdownCollectionView: UICollectionViewDataSource, UICollectionViewDe
         cell.theme = theme
         cell.onLinkTap = onLinkTap
         cell.onCheckboxToggle = onCheckboxToggle
+        cell.textInteractionMode = textInteractionMode
         cell.onDetailsTap = { [weak self] details in
             self?.onToggleDetails?(indexPath.item, details)
         }
